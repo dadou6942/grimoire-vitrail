@@ -124,7 +124,7 @@
     $('#tip').style.display = 'none';
   }
   document.addEventListener('pointerdown', (e) => {
-    if (!e.target.closest('[data-tip]')) hideTip();
+    if (!e.target.closest('[data-tip], #tip')) hideTip();
   });
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-tip]');
@@ -287,6 +287,7 @@
       if (inCombat) {
         C.fxDelay = 0;
         C.combat.usePotion(idx);
+        saveCombat('player');
         refreshTopbar(root);
         renderCombat();
         if (C.combat.over) handleOver();
@@ -309,6 +310,7 @@
       `<button class="btn gold" id="m-resume">Reprendre</button>` +
       `<button class="btn" id="m-speed">Animations : ${UI.settings.fast ? 'rapides' : 'normales'}</button>` +
       `<button class="btn" id="m-tuto">Revoir les conseils</button>` +
+      `<button class="btn" id="m-account">Compte et sauvegarde</button>` +
       `<button class="btn ghost" id="m-title">Sauvegarder et quitter</button>` +
       `<button class="btn ghost" id="m-abandon">Abandonner la partie</button>` +
       `</div></div>`;
@@ -320,6 +322,10 @@
       saveSettings();
       openMenu();
     };
+    $('#m-account').onclick = () => {
+      close();
+      openAccount();
+    };
     $('#m-tuto').onclick = () => {
       UI.settings.tuto = {};
       saveSettings();
@@ -327,8 +333,13 @@
       UI.toast('Les conseils réapparaîtront.');
     };
     $('#m-title').onclick = () => {
+      if (current === 'combat' && C.busy) {
+        UI.toast('Impossible de quitter pendant le tour de l’ennemi. Réessaie dans un instant.');
+        return;
+      }
       close();
-      R.save();
+      if (current === 'combat') saveCombat('player');
+      else R.save();
       go('title', renderTitle);
     };
     let armed = false;
@@ -343,6 +354,139 @@
       go('title', renderTitle);
     };
   }
+
+  // ---- compte en ligne et transfert de progression
+  UI.inGame = () => !['title', 'heroes', 'end', null].includes(current);
+  UI.onCloudPulled = () => {
+    if (current === 'title') renderTitle();
+  };
+  function cloudLine() {
+    const Cl = G.Cloud;
+    if (!Cl || !Cl.enabled()) return '';
+    if (!Cl.loggedIn()) return 'Non connecté';
+    const st = { syncing: 'synchronisation…', ok: 'synchronisé', offline: 'hors ligne : sera synchronisé plus tard', error: Cl.message || 'erreur', idle: '' }[Cl.status] || '';
+    return `Connecté : ${Cl.session.pseudo}${st ? ' · ' + st : ''}`;
+  }
+  function openAccount(tab) {
+    const ov = $('#account');
+    const Cl = G.Cloud;
+    tab = tab || 'login';
+    let cloud = '';
+    if (!Cl || !Cl.enabled()) {
+      cloud = `<p class="acc-note">Les comptes en ligne ne sont pas encore activés pour ce jeu. En attendant, utilise le code de transfert ci-dessous pour passer d’un appareil à l’autre.</p>`;
+    } else if (Cl.loggedIn()) {
+      cloud =
+        `<p class="acc-status">${cloudLine()}</p><p class="acc-note">${Cl.session.user.email} · ta progression est enregistrée en ligne et te suit sur tous tes appareils.</p>` +
+        `<div class="actions"><button class="btn blue sm" id="acc-sync">Synchroniser maintenant</button><button class="btn ghost sm" id="acc-out">Se déconnecter</button></div>`;
+    } else {
+      const sign = tab === 'signup';
+      cloud =
+        `<div class="acc-tabs"><button class="${sign ? '' : 'on'}" id="acc-t-login">Se connecter</button><button class="${sign ? 'on' : ''}" id="acc-t-signup">Créer un compte</button></div>` +
+        `<form class="acc-form" id="acc-form" novalidate>` +
+        (sign ? `<label>Pseudo<input id="acc-pseudo" autocomplete="nickname" maxlength="20" required></label>` : '') +
+        `<label>E-mail<input id="acc-email" type="email" autocomplete="email" inputmode="email" required></label>` +
+        `<label>Mot de passe<input id="acc-pass" type="password" autocomplete="${sign ? 'new-password' : 'current-password'}" minlength="6" required></label>` +
+        `<p class="acc-msg" id="acc-msg"></p>` +
+        `<button class="btn gold" type="submit">${sign ? 'Créer mon compte' : 'Me connecter'}</button>` +
+        `</form>`;
+    }
+    ov.innerHTML =
+      `<div class="inner"><div class="panel-head"><h2>Compte</h2><p>Garde ta progression, et retrouve-la sur un autre appareil.</p></div>` +
+      `<div class="scroll">` +
+      `<div class="shop-sec">Compte en ligne</div>${cloud}` +
+      `<div class="shop-sec">Transférer ma progression</div>` +
+      `<p class="acc-note">Un code contient tes héros éveillés, tes paliers et ta partie en cours. Copie-le ici, colle-le sur l’autre appareil.</p>` +
+      `<div class="actions"><button class="btn sm" id="acc-export">Afficher mon code</button><button class="btn sm" id="acc-import">Coller un code</button></div>` +
+      `<div id="acc-code"></div>` +
+      `</div>` +
+      `<div class="actions"><button class="btn gold" id="acc-close">Fermer</button></div></div>`;
+    ov.classList.add('show');
+    const close = () => {
+      ov.classList.toggle('show', false);
+      if (current === 'title') renderTitle();
+    };
+    $('#acc-close').onclick = close;
+    if (Cl && Cl.enabled()) {
+      Cl.onChange = () => {
+        const s = $('#account .acc-status');
+        if (s) s.textContent = cloudLine();
+        const t = $('#title .acc-line');
+        if (t) t.textContent = cloudLine();
+      };
+      if (Cl.loggedIn()) {
+        $('#acc-sync').onclick = () => Cl.sync(true);
+        $('#acc-out').onclick = async () => {
+          await Cl.signOut();
+          openAccount();
+        };
+      } else {
+        $('#acc-t-login').onclick = () => openAccount('login');
+        $('#acc-t-signup').onclick = () => openAccount('signup');
+        $('#acc-form').onsubmit = async (e) => {
+          e.preventDefault();
+          const email = $('#acc-email').value.trim();
+          const pass = $('#acc-pass').value;
+          const msg = $('#acc-msg');
+          const pseudoEl = $('#acc-pseudo');
+          if (!email || pass.length < 6 || (pseudoEl && !pseudoEl.value.trim())) {
+            msg.textContent = pseudoEl ? 'Pseudo, e-mail et mot de passe (6 caractères au moins) sont nécessaires.' : 'E-mail et mot de passe (6 caractères au moins) sont nécessaires.';
+            return;
+          }
+          msg.textContent = 'Un instant…';
+          const err = pseudoEl ? await Cl.signUp(email, pass, pseudoEl.value.trim()) : await Cl.signIn(email, pass);
+          if (err) {
+            msg.textContent = err;
+            return;
+          }
+          UI.toast('Bienvenue, ' + Cl.session.pseudo + ' !');
+          openAccount();
+        };
+      }
+    }
+    $('#acc-export').onclick = () => {
+      const code = R.exportCode();
+      $('#acc-code').innerHTML =
+        `<textarea id="acc-code-txt" readonly rows="4" aria-label="Ton code de transfert">${code}</textarea>` +
+        `<div class="actions"><button class="btn gold sm" id="acc-copy">Copier</button></div>`;
+      const ta = $('#acc-code-txt');
+      $('#acc-copy').onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(code);
+          UI.toast('Code copié');
+        } catch (e) {
+          ta.focus();
+          ta.select();
+          UI.toast('Sélectionné : copie-le avec le menu de ton téléphone');
+        }
+      };
+    };
+    $('#acc-import').onclick = () => {
+      $('#acc-code').innerHTML =
+        `<textarea id="acc-in" rows="4" placeholder="Colle ici le code (il commence par GV2-)" aria-label="Code à importer"></textarea>` +
+        `<p class="acc-msg" id="acc-in-msg"></p>` +
+        `<div class="actions"><button class="btn gold sm" id="acc-apply">Importer</button></div>`;
+      let armed = false;
+      $('#acc-apply').onclick = (e) => {
+        const code = $('#acc-in').value;
+        if (!code.trim()) return;
+        if (R.hasSave() && !armed) {
+          armed = true;
+          e.currentTarget.textContent = 'Remplacer ma partie en cours ?';
+          return;
+        }
+        const err = R.importCode(code);
+        if (err) {
+          $('#acc-in-msg').textContent = err;
+          return;
+        }
+        R.save && R.run && (R.run = null);
+        R.saveMeta();
+        UI.toast('Progression importée');
+        close();
+      };
+    };
+  }
+  UI.openAccount = openAccount;
 
   UI.settings = { fast: false, tuto: {} };
   function loadSettings() {
@@ -385,9 +529,12 @@
       (has ? `<button class="btn gold" id="b-continue">Reprendre l’ascension</button>` : '') +
       `<button class="btn" id="b-new">Nouvelle ascension</button>` +
       `</div>` +
+      `<button class="btn ghost sm" id="b-account">Compte et sauvegarde</button>` +
+      (G.Cloud && G.Cloud.enabled() ? `<div class="foot acc-line">${cloudLine()}</div>` : '') +
       `<div class="foot">${R.meta.wins ? `Victoires : ${R.meta.wins}` : 'La rosace attend ton retour.'}</div>` +
       `<div class="version">Version ${window.GRIMOIRE_VERSION || 'locale'}</div>`;
     if (has) $('#b-continue').onclick = () => continueRun();
+    $('#b-account').onclick = () => openAccount();
     let armed = false;
     $('#b-new').onclick = (e) => {
       if (has && !armed) {
@@ -462,18 +609,35 @@
     };
   }
 
+  /** Reprend la partie exactement où on l'avait laissée. */
   function continueRun() {
     if (!R.load()) return;
-    // sauvegarde d'une version précédente (carte à embranchements)
     const run = R.run;
-    if (!run.doors) {
-      run.step = Math.min(R.FLOORS, run.pos ? run.pos.row + 1 : 0);
-      run.history = run.history || [];
-      run.actSeen = run.actSeen || {};
-      run.pending = null;
-      run.doors = R.makeDoors();
+    const st = run.resume;
+    const d = run.pending;
+    if (st && st.screen === 'combat' && st.snap) return go('combat', () => startCombat(st.snap.enemyId, st.type, st.mod, st));
+    if (st && st.screen === 'reward') {
+      C.type = st.type;
+      return go('reward', () => renderReward(st.rw));
     }
-    run.potions = run.potions || [];
+    if (st && st.screen === 'shop') {
+      stock = st.stock;
+      return go('shop', () => renderShop(false));
+    }
+    if (st && st.screen === 'event') {
+      const ev = G.EVENTS.find((x) => x.id === st.id);
+      if (ev) return go('event', () => renderEvent(ev, st.result));
+    }
+    if (st && st.screen === 'altar') return go('altar', renderAltar);
+    if (st && st.screen === 'treasure') return go('reward', () => renderTreasure(st.pool));
+    // une porte franchie juste avant de quitter : on y retourne
+    if (d && !st) {
+      if (d.type === 'combat' || d.type === 'elite' || d.type === 'boss') return go('combat', () => startCombat(d.enemy, d.type, d.mod));
+      if (d.type === 'event') return go('event', () => renderEvent(R.nextEvent()));
+      if (d.type === 'merchant') return go('shop', () => renderShop(true));
+      if (d.type === 'altar') return go('altar', renderAltar);
+      if (d.type === 'treasure') return go('reward', () => renderTreasure());
+    }
     go('map', renderMap);
   }
 
@@ -576,9 +740,10 @@
     go('map', renderMap);
   }
 
-  function renderTreasure() {
+  function renderTreasure(savedPool) {
     const el = $('#reward');
-    const pool = G.shuffle(R.relicPool(['c', 'u', 'r'])).slice(0, 2);
+    const pool = savedPool || G.shuffle(R.relicPool(['c', 'u', 'r'])).slice(0, 2);
+    R.saveResume({ screen: 'treasure', pool });
     el.innerHTML =
       topbar(whereText()) +
       `<div class="panel-head"><h2>Le Trésor</h2><p>Deux reliques dorment sous la poussière. Tu ne pourras en emporter qu’une.</p></div>` +
@@ -601,8 +766,18 @@
   // ------------------------------------------------------------------ combat
   const C = { combat: null, busy: false, type: null };
   UI.C = C;
+  // redessine l'écran de combat (utilisé aussi par les tests)
+  UI.refresh = () => current === 'combat' && C.combat && renderCombat();
 
-  function startCombat(enemyId, type, mod) {
+  /** Mémorise le combat en cours. phase : 'player' (à toi de jouer), 'ended' (tour terminé), 'enemy' (l'ennemi a joué). */
+  function saveCombat(phase) {
+    const c = C.combat;
+    if (!c || c.over || !R.run) return;
+    R.run.hp = c.p.hp;
+    R.saveResume({ screen: 'combat', type: C.type, mod: C.mod, phase, snap: c.snapshot() });
+  }
+
+  function startCombat(enemyId, type, mod, resume) {
     C.type = type;
     C.mod = mod || null;
     C.busy = false;
@@ -633,9 +808,28 @@
     $('.end-turn', el).onclick = () => endTurn();
     $('.b-draw', el).onclick = () => openPile('Pioche', C.combat.pile, true);
     $('.b-disc', el).onclick = () => openPile('Défausse', C.combat.discard);
+    // les éléments de cartes du combat précédent ne doivent pas être réutilisés
+    handEls.clear();
+    selectedUid = null;
+    drag = null;
+    if (resume && resume.snap) {
+      // reprise : on reconstitue le combat tel qu'il était
+      C.combat = G.Combat.restore(resume.snap, onEvent);
+      if (resume.phase === 'ended') C.combat.enemyTurn();
+      if (resume.phase === 'ended' || resume.phase === 'enemy') {
+        if (!C.combat.over) C.combat.startTurn();
+      }
+      renderCombat(true);
+      setTimeout(layoutHand, 620);
+      setTimeout(() => UI.toast('Combat repris là où tu l’avais laissé'), 700);
+      if (C.combat.over) setTimeout(handleOver, 800);
+      else saveCombat('player');
+      return;
+    }
     C.combat = new G.Combat(enemyId, onEvent, mod);
     C.combat.start();
     renderCombat(true);
+    saveCombat('player');
     setTimeout(layoutHand, 620);
     if (def.boss) setTimeout(() => banner(def.name), 600);
     setTimeout(() => tutorial('combat'), 900);
@@ -1000,6 +1194,7 @@
     if (c.over) return handleOver();
     C.busy = false;
     renderCombat();
+    saveCombat('player');
     tutorial('played');
   }
 
@@ -1019,6 +1214,7 @@
     }
     C.fxDelay = 0;
     c.endTurn();
+    saveCombat('ended');
     await wait(T(240));
     handEls.forEach((el) => el.remove());
     handEls.clear();
@@ -1035,11 +1231,13 @@
     }
     C.fxDelay = 0;
     c.enemyTurn();
+    saveCombat('enemy');
     renderCombat();
     await wait(T(380 + (intent && intent.hits ? intent.hits * 130 : 0)));
     if (c.over) return handleOver();
     C.fxDelay = 0;
     c.startTurn();
+    saveCombat('player');
     C.busy = false;
     renderCombat(true);
   }
@@ -1228,6 +1426,7 @@
     // parfois une carte proposée est déjà améliorée
     reward.upgraded = reward.cards.map(() => Math.random() < (type === 'elite' ? 0.35 : 0.15));
     R.save();
+    R.saveResume({ screen: 'reward', rw: reward, type });
     go('reward', () => renderReward(reward));
   }
   R.gainRandomRelicSilent = function () {
@@ -1250,7 +1449,7 @@
       (rw.bossRelics && rw.bossRelics.length
         ? `<div class="shop-sec">Choisis une relique de gardien</div><div class="shop-relics">${rw.bossRelics
             .map((id) => `<button class="shop-relic b-boss" data-id="${id}"><img alt="" src="${G.Art.relic(id)}"><div class="t">${G.RELICS[id].name}</div><div class="d">${G.RELICS[id].desc}</div></button>`)
-            .join('')}</div>`
+            .join('')}</div><div class="actions"><button class="btn ghost sm" id="b-noboss">N’en prendre aucune</button></div>`
         : '') +
       `<div class="shop-sec">Ajoute une carte à ton grimoire</div>` +
       `<div class="card-row"></div>` +
@@ -1278,34 +1477,50 @@
       };
       row.appendChild(ce);
     });
-    let bossPicked = !rw.bossRelics || !rw.bossRelics.length;
+    // relique de gardien : facultative, et on peut changer d'avis jusqu'au départ
+    const hasBoss = rw.bossRelics && rw.bossRelics.length;
+    const markBoss = () => {
+      $$('.b-boss', el).forEach((x) => {
+        const on = x.dataset.id === rw.bossChoice;
+        x.style.opacity = rw.bossChoice === undefined || on ? '1' : '0.35';
+        x.style.boxShadow = on ? '0 0 0 2px #f5dc96, 0 0 24px rgba(245,220,150,.6)' : '';
+      });
+      const none = $('#b-noboss');
+      if (none) none.classList.toggle('chosen', rw.bossChoice === null);
+    };
     $$('.b-boss', el).forEach((b) => {
       b.onclick = () => {
-        if (bossPicked) return;
-        bossPicked = true;
-        R.gainRelic(b.dataset.id);
-        $$('.b-boss', el).forEach((x) => (x.style.opacity = x === b ? '1' : '0.25'));
-        b.style.boxShadow = '0 0 0 2px #f5dc96, 0 0 24px rgba(245,220,150,.6)';
-        refreshTopbar(el);
-        el.querySelector('.relics').innerHTML = R.run.relics.map((id) => `<div class="relic" data-tip="relic:${id}"><img alt="" src="${G.Art.relic(id)}"></div>`).join('');
+        rw.bossChoice = b.dataset.id;
+        markBoss();
+        R.saveResume({ screen: 'reward', rw, type: C.type });
       };
     });
+    const noBoss = $('#b-noboss');
+    if (noBoss) {
+      noBoss.onclick = () => {
+        rw.bossChoice = null;
+        markBoss();
+        R.saveResume({ screen: 'reward', rw, type: C.type });
+      };
+    }
+    markBoss();
     let left = false;
     const leave = () => {
       if (left) return;
-      if (!bossPicked) {
-        UI.toast('Choisis d’abord une relique de gardien.');
+      if (hasBoss && rw.bossChoice === undefined) {
+        UI.toast('Choisis une relique de gardien, ou « N’en prendre aucune ».');
         return;
       }
       left = true;
+      if (hasBoss && rw.bossChoice) R.gainRelic(rw.bossChoice);
       if (C.type === 'boss') nextAct();
       else completeNode();
     };
     $('#b-skip').onclick = leave;
     $('#b-take').onclick = () => {
       if (!chosen || left) return;
-      if (!bossPicked) {
-        UI.toast('Choisis d’abord une relique de gardien.');
+      if (hasBoss && rw.bossChoice === undefined) {
+        UI.toast('Choisis une relique de gardien, ou « N’en prendre aucune ».');
         return;
       }
       R.addCard(chosen, chosenUp);
@@ -1327,6 +1542,7 @@
   // ------------------------------------------------------------------ autel
   function renderAltar() {
     const run = R.run;
+    R.saveResume({ screen: 'altar' });
     const el = $('#altar');
     const noHeal = R.has('ostensoir');
     const heal = Math.round(run.maxHp * ((run.palier || 0) >= 4 ? 0.15 : 0.3)) + (R.has('sceau') ? 15 : 0);
@@ -1371,6 +1587,8 @@
   }
   function renderShop(fresh) {
     if (fresh || !stock) stock = makeStock();
+    // chaque passage (et chaque achat, qui redessine l'écran) mémorise l'étal
+    R.saveResume({ screen: 'shop', stock });
     const run = R.run;
     const el = $('#shop');
     const pr = (p) => `<div class="price ${run.gold < p ? 'no' : ''}">${icon('coin')}${p}</div>`;
@@ -1474,13 +1692,14 @@
   }
 
   // ------------------------------------------------------------------ événement
-  function renderEvent(ev) {
+  function renderEvent(ev, savedResult) {
     const el = $('#event');
+    R.saveResume({ screen: 'event', id: ev.id, result: savedResult });
     el.innerHTML =
       topbar(whereText()) +
       `<div class="panel-head"><h2>${ev.title}</h2></div>` +
       `<div class="scroll">` +
-      `<div class="event-art lit"><img alt="" src="${G.Art.event(ev)}"><div style="position:absolute;inset:0;background:radial-gradient(circle at var(--gx,50%) var(--gy,30%),rgba(255,240,200,.5),transparent 55%);mix-blend-mode:overlay"></div></div>` +
+      `<div class="event-art"><img alt="" src="${G.Art.event(ev)}"></div>` +
       `<p class="event-text">${ev.text}</p>` +
       `<div class="choice-list">${ev.choices
         .map((ch, i) => `<button class="choice" data-i="${i}" ${ch.cond && !ch.cond(R) ? 'disabled' : ''}><span class="t">${ch.label}</span><span class="d">${ch.detail}</span></button>`)
@@ -1492,12 +1711,17 @@
         $$('.choice', el).forEach((x) => (x.disabled = true));
         let res = ev.choices[Number(b.dataset.i)].act(R);
         if (res && typeof res.then === 'function') res = await res;
-        refreshTopbar(el);
-        const list = $('.choice-list', el);
-        list.innerHTML = `<p class="event-text result">${typeof res === 'string' ? res : 'C’est fait.'}</p><div class="actions"><button class="btn gold" id="b-ev-ok">Continuer</button></div>`;
-        $('#b-ev-ok').onclick = () => completeNode();
+        showResult(typeof res === 'string' ? res : 'C’est fait.');
       };
     });
+    const showResult = (text) => {
+      R.saveResume({ screen: 'event', id: ev.id, result: text });
+      refreshTopbar(el);
+      const list = $('.choice-list', el);
+      list.innerHTML = `<p class="event-text result">${text}</p><div class="actions"><button class="btn gold" id="b-ev-ok">Continuer</button></div>`;
+      $('#b-ev-ok').onclick = () => completeNode();
+    };
+    if (savedResult) showResult(savedResult);
   }
 
   // ------------------------------------------------------------------ paquet, choix de carte
@@ -1633,7 +1857,9 @@
   // ------------------------------------------------------------------ démarrage
   UI.init = function () {
     R.loadMeta();
+    R.askPersistence();
     loadSettings();
+    if (G.Cloud) G.Cloud.init();
     setCardWidth();
     window.addEventListener('resize', () => {
       setCardWidth();
@@ -1646,7 +1872,10 @@
     renderTitle();
     show('title');
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden && R.run && current === 'map') R.save();
+      // l'app passe en arrière-plan (ou est fermée) : on sauvegarde l'état exact
+      if (!document.hidden || !R.run) return;
+      if (current === 'combat' && C.combat && !C.busy && !C.combat.over) saveCombat('player');
+      else R.save();
     });
   };
 

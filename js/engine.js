@@ -38,52 +38,194 @@
   };
   G.Run = R;
 
-  R.loadMeta = function () {
+  // ---------------------------------------------------------------- stockage durable
+  // Les clés ne changent jamais d'une version à l'autre : les sauvegardes existantes restent valides.
+  // Chaque écriture est doublée d'une copie de secours ; une sauvegarde illisible n'est jamais
+  // effacée (on se rabat sur la copie). Les anciennes versions sont adaptées par migrateRun/migrateMeta.
+  const SCHEMA = 2;
+  const BAK = '.bak';
+  R.listeners = [];
+  const notify = (what) => R.listeners.forEach((fn) => {
     try {
-      const m = JSON.parse(localStorage.getItem(META_KEY) || 'null');
-      if (m) R.meta = Object.assign(R.meta, m);
+      fn(what);
     } catch (e) {
-      /* stockage indisponible */
+      /* un auditeur défaillant ne doit pas casser la sauvegarde */
     }
-  };
-  R.saveMeta = function () {
+  });
+
+  function readJSON(key) {
+    for (const k of [key, key + BAK]) {
+      try {
+        const raw = localStorage.getItem(k);
+        if (!raw) continue;
+        const v = JSON.parse(raw);
+        if (v && typeof v === 'object') return v;
+      } catch (e) {
+        /* illisible : on essaie la copie de secours */
+      }
+    }
+    return null;
+  }
+  function writeJSON(key, value) {
     try {
-      localStorage.setItem(META_KEY, JSON.stringify(R.meta));
+      const raw = JSON.stringify(value);
+      localStorage.setItem(key, raw);
+      localStorage.setItem(key + BAK, raw);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  function dropKey(key) {
+    try {
+      localStorage.removeItem(key);
+      localStorage.removeItem(key + BAK);
     } catch (e) {
       /* ignoré */
     }
+  }
+
+  /** Demande au navigateur de ne pas effacer nos données de lui-même. */
+  R.askPersistence = function () {
+    try {
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    } catch (e) {
+      /* ignoré */
+    }
+  };
+
+  R.migrateMeta = function (m) {
+    const base = { wins: 0, runs: 0, best: 0, guardians: 0, palier: {}, winsBy: {}, updatedAt: 0 };
+    m = Object.assign(base, m || {});
+    m.palier = m.palier || {};
+    m.winsBy = m.winsBy || {};
+    // un joueur qui a déjà gagné a forcément vaincu des gardiens (sauvegardes d'avant les déblocages)
+    if (m.wins && m.guardians < m.wins * 3) m.guardians = m.wins * 3;
+    m.v = SCHEMA;
+    return m;
+  };
+
+  /** Adapte une partie sauvegardée par une version plus ancienne (ou plus récente) du jeu. */
+  R.migrateRun = function (run) {
+    if (!run || !run.hero || !G.HEROES[run.hero] || !Array.isArray(run.deck)) return null;
+    run.deck = run.deck.filter((c) => c && G.CARDS[c.id]).map((c) => (c.uid ? c : newCard(c.id, c.up)));
+    if (!run.deck.length) return null;
+    run.relics = (run.relics || []).filter((id) => G.RELICS[id]);
+    run.potions = (run.potions || []).filter((id) => G.POTIONS[id]).slice(0, 3);
+    run.stats = Object.assign({ kills: 0, elites: 0, bosses: 0, cards: 0, time: 0 }, run.stats || {});
+    run.history = run.history || [];
+    run.actSeen = run.actSeen || {};
+    run.seenEvents = run.seenEvents || [];
+    run.palier = run.palier || 0;
+    run.removeCost = run.removeCost || 75;
+    run.act = Math.min(3, Math.max(1, run.act || 1));
+    run.maxHp = Math.max(1, run.maxHp || G.HEROES[run.hero].hp);
+    run.hp = Math.min(run.maxHp, Math.max(1, run.hp || 1));
+    // version 1 : carte à embranchements
+    if (run.step === undefined) run.step = Math.min(R.FLOORS, run.pos ? run.pos.row + 1 : 0);
+    const doorOk = (d) => d && d.type && (!d.enemy || G.ENEMIES[d.enemy]) && (!d.mod || G.MODS[d.mod]);
+    if (!Array.isArray(run.doors) || !run.doors.length || !run.doors.every(doorOk)) {
+      run.pending = null;
+      run.doors = null;
+    }
+    if (run.pending && !doorOk(run.pending)) run.pending = null;
+    if (run.resume) {
+      const st = run.resume;
+      const bad =
+        (st.screen === 'combat' && (!st.snap || !G.ENEMIES[st.snap.enemyId] || [].concat(st.snap.hand, st.snap.pile, st.snap.discard).some((c) => !c || !G.CARDS[c.id]))) ||
+        (st.screen === 'event' && !G.EVENTS.find((e) => e.id === st.id));
+      if (bad) run.resume = null;
+    }
+    run.v = SCHEMA;
+    return run;
+  };
+
+  R.loadMeta = function () {
+    R.meta = R.migrateMeta(readJSON(META_KEY));
+  };
+  R.saveMeta = function () {
+    R.meta.updatedAt = Date.now();
+    writeJSON(META_KEY, R.meta);
+    notify('meta');
   };
   R.save = function () {
     if (!R.run) return;
-    try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(R.run));
-    } catch (e) {
-      /* ignoré */
-    }
+    R.run.updatedAt = Date.now();
+    writeJSON(SAVE_KEY, R.run);
+    notify('run');
   };
   R.hasSave = function () {
-    try {
-      return !!localStorage.getItem(SAVE_KEY);
-    } catch (e) {
-      return false;
-    }
+    return !!readJSON(SAVE_KEY);
   };
   R.load = function () {
-    try {
-      R.run = JSON.parse(localStorage.getItem(SAVE_KEY));
-      return !!R.run;
-    } catch (e) {
-      return false;
-    }
+    const run = R.migrateRun(readJSON(SAVE_KEY));
+    if (!run) return false;
+    R.run = run;
+    if (!run.doors) run.doors = R.makeDoors();
+    return true;
   };
   R.clear = function () {
     R.run = null;
+    dropKey(SAVE_KEY);
+    notify('run');
+  };
+
+  // ---------------------------------------------------------------- code de transfert
+  // Toute la progression (héros éveillés, paliers, partie en cours) dans un texte à recopier.
+  R.exportCode = function () {
+    const data = { v: SCHEMA, meta: R.meta, run: readJSON(SAVE_KEY) };
+    const json = JSON.stringify(data);
+    const b64 = btoa(unescape(encodeURIComponent(json)));
+    let sum = 0;
+    for (let i = 0; i < json.length; i++) sum = (sum * 31 + json.charCodeAt(i)) >>> 0;
+    return 'GV2-' + sum.toString(36) + '-' + b64;
+  };
+  /** Importe un code ; renvoie un message d'erreur, ou null si tout s'est bien passé. */
+  R.importCode = function (code) {
     try {
-      localStorage.removeItem(SAVE_KEY);
+      const m = /^GV2-([a-z0-9]+)-(.+)$/.exec((code || '').replace(/\s+/g, ''));
+      if (!m) return 'Ce code n’est pas un code de transfert du Grimoire.';
+      const json = decodeURIComponent(escape(atob(m[2])));
+      let sum = 0;
+      for (let i = 0; i < json.length; i++) sum = (sum * 31 + json.charCodeAt(i)) >>> 0;
+      if (sum.toString(36) !== m[1]) return 'Le code est incomplet ou abîmé. Recopie-le en entier.';
+      const data = JSON.parse(json);
+      R.applyRemote(data.meta, data.run, true);
+      return null;
     } catch (e) {
-      /* ignoré */
+      return 'Le code est incomplet ou abîmé. Recopie-le en entier.';
     }
   };
+
+  /**
+   * Fusionne une progression venue d'ailleurs (autre appareil, compte en ligne).
+   * Les acquis se cumulent (on garde le meilleur de chaque côté) ; pour la partie en cours,
+   * la plus récente l'emporte. force = remplacer la partie en cours quoi qu'il arrive.
+   */
+  R.applyRemote = function (meta, run, force) {
+    if (meta) {
+      const a = R.meta;
+      const b = R.migrateMeta(meta);
+      const merged = R.migrateMeta({
+        wins: Math.max(a.wins, b.wins),
+        runs: Math.max(a.runs, b.runs),
+        best: Math.max(a.best, b.best),
+        guardians: Math.max(a.guardians, b.guardians),
+        palier: Object.assign({}, a.palier),
+        winsBy: Object.assign({}, a.winsBy),
+      });
+      for (const k in b.palier) merged.palier[k] = Math.max(merged.palier[k] || 0, b.palier[k]);
+      for (const k in b.winsBy) merged.winsBy[k] = Math.max(merged.winsBy[k] || 0, b.winsBy[k]);
+      R.meta = merged;
+      writeJSON(META_KEY, R.meta);
+    }
+    const local = readJSON(SAVE_KEY);
+    const remote = R.migrateRun(run);
+    if (remote && (force || !local || (remote.updatedAt || 0) > (local.updatedAt || 0))) {
+      writeJSON(SAVE_KEY, remote);
+    }
+  };
+  R.snapshotAll = () => ({ v: SCHEMA, meta: R.meta, run: readJSON(SAVE_KEY) });
 
   // ---------------------------------------------------------------- progression entre les parties
   R.PALIERS = [
@@ -318,11 +460,19 @@
     return d;
   };
 
+  /** Mémorise l'écran en cours (combat, récompense, marchand…) pour reprendre exactement là. */
+  R.saveResume = function (state) {
+    if (!R.run) return;
+    R.run.resume = state;
+    R.save();
+  };
+
   R.finishStep = function () {
     const run = R.run;
     if (!run.pending) return false;
     run.history.push(run.pending.type);
     run.pending = null;
+    run.resume = null;
     run.step++;
     run.floor++;
     run.doors = R.makeDoors();
@@ -337,6 +487,7 @@
     run.history = [];
     run.actSeen = {};
     run.pending = null;
+    run.resume = null;
     run.floor++;
     run.hp = run.maxHp;
     run.doors = R.makeDoors();
@@ -761,5 +912,44 @@
       R.run.maxHp = this.p.maxHp;
     }
   }
+  // ----- photo du combat pour reprendre exactement où l'on en était
+  Combat.prototype.snapshot = function () {
+    const strip = (cards) => cards.map((c) => ({ id: c.id, up: c.up, uid: c.uid, temp: c.temp || undefined }));
+    return {
+      enemyId: this.enemyId,
+      mod: this.mod,
+      p: { hp: this.p.hp, maxHp: this.p.maxHp, block: this.p.block, st: Object.assign({}, this.p.st) },
+      e: { hp: this.e.hp, maxHp: this.e.maxHp, block: this.e.block, st: Object.assign({}, this.e.st), turn: this.e.turn, moveKey: this.e.moveKey },
+      pile: strip(this.pile),
+      hand: strip(this.hand),
+      discard: strip(this.discard),
+      exhausted: strip(this.exhausted),
+      ink: this.ink,
+      turn: this.turn,
+      stats: Object.assign({}, this.stats),
+      hidden: this.hidden,
+      stolen: this.stolen,
+      hpLowUsed: this.hpLowUsed,
+    };
+  };
+  Combat.restore = function (snap, emit) {
+    const c = new Combat(snap.enemyId, emit, snap.mod);
+    Object.assign(c.p, snap.p);
+    c.p.st = Object.assign({}, snap.p.st);
+    Object.assign(c.e, { hp: snap.e.hp, maxHp: snap.e.maxHp, block: snap.e.block, st: Object.assign({}, snap.e.st), turn: snap.e.turn, moveKey: snap.e.moveKey });
+    c.e.intent = c.e.def.moves[snap.e.moveKey] || null;
+    c.pile = snap.pile.slice();
+    c.hand = snap.hand.slice();
+    c.discard = snap.discard.slice();
+    c.exhausted = snap.exhausted.slice();
+    c.ink = snap.ink;
+    c.turn = snap.turn;
+    c.stats = Object.assign({}, snap.stats);
+    c.hidden = snap.hidden;
+    c.stolen = snap.stolen || 0;
+    c.hpLowUsed = snap.hpLowUsed;
+    return c;
+  };
+
   G.Combat = Combat;
 })(typeof window !== 'undefined' ? (window.G = window.G || {}) : module.exports);

@@ -39,6 +39,17 @@ Le dossier se publie tel quel sur GitHub Pages (Settings → Pages → branche `
 - Un guide explique les gestes lors de la première partie. Le menu ☰ permet de revoir les conseils, d'accélérer les animations,
   de sauvegarder et quitter, ou d'abandonner.
 
+## Sauvegardes et comptes
+
+- La partie est sauvegardée en continu. Si tu quittes (ou si le téléphone ferme l'app), tu reprends **exactement** où tu en étais :
+  en plein combat, sur une récompense, chez le marchand… Le bouton « Sauvegarder et quitter » refuse de quitter
+  pendant le tour de l'ennemi.
+- Les sauvegardes survivent aux mises à jour : les anciennes sont adaptées automatiquement, chaque écriture a une copie
+  de secours, et une sauvegarde abîmée n'est jamais effacée (`node tools/test-saves.js` le vérifie).
+- **Compte et sauvegarde** (écran titre ou menu ☰) :
+  - un **code de transfert** pour passer ta progression d'un appareil à l'autre, sans compte ;
+  - des **comptes en ligne** pour synchroniser automatiquement ses appareils. Pour les activer, suis le guide [COMPTES.md](COMPTES.md) (projet Supabase gratuit, une dizaine de minutes).
+
 ## Contenu
 
 - **Trois héros**, chacun avec ses cartes et sa relique :
@@ -55,13 +66,17 @@ Le dossier se publie tel quel sur GitHub Pages (Settings → Pages → branche `
 ```
 index.html, style.css   écrans et style
 js/data.js              cartes, héros, ennemis, reliques, événements
-js/engine.js            partie en cours, carte d'ascension, règles de combat
+js/engine.js            partie en cours, portes, règles de combat, sauvegardes et migrations
+js/cloud.js             comptes en ligne (Supabase) et synchronisation
+js/config.js            adresse et clé publique du projet Supabase (vides = sans compte)
 js/art.js               générateur de vitraux (Voronoï, plomb, grisaille, motifs et figures)
 js/fx.js                éclats de verre (pré-découpés), étincelles, poussières, transition en rosace
 js/ui.js                écrans, main de cartes au doigt, déroulé animé des combats
 tools/balance.js        un bot joue des centaines de parties pour mesurer la difficulté
 tools/enemies.js        PV perdus par combat avec le paquet de départ
 tools/make-icons.js     icônes de l’application
+tools/test-saves.js     vérifie la migration des sauvegardes et le code de transfert
+tools/mock-supabase.js  faux serveur Supabase pour tester les comptes
 tools/bump.js           numéro de version (à lancer avant chaque publication : node tools/bump.js X.Y.Z)
 ```
 
