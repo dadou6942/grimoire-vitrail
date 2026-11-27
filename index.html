@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#07060b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Grimoire">
+  <meta name="description" content="Grimoire de Vitrail — un jeu de cartes dark fantasy en vitrail, pour iPhone.">
+  <title>Grimoire de Vitrail</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Grenze+Gotisch:wght@400;600&family=Grenze:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--BODY-->
+  <div id="backdrop"><img class="rose" alt=""><div class="beam"></div><div class="beam b2"></div></div>
+  <canvas id="motes"></canvas>
+  <div id="app">
+    <section id="title" class="screen"></section>
+    <section id="heroes" class="screen"></section>
+    <section id="map" class="screen"></section>
+    <section id="combat" class="screen"></section>
+    <section id="reward" class="screen"></section>
+    <section id="altar" class="screen"></section>
+    <section id="shop" class="screen"></section>
+    <section id="event" class="screen"></section>
+    <section id="end" class="screen"></section>
+  </div>
+  <div id="deck" class="overlay"></div>
+  <div id="pick" class="overlay"></div>
+  <div id="cardview" class="overlay"></div>
+  <canvas id="fx"></canvas>
+  <div id="vignette"></div>
+  <div id="iris"><div class="veil"></div><img alt=""></div>
+  <div id="tip"></div>
+  <div id="toast"></div>
+<!--/BODY-->
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    }
+  </script>
+</body>
+</html>
