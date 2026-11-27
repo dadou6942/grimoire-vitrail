@@ -483,6 +483,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap
 .hand .card { position: absolute; left: 50%; bottom: 2px; transform-origin: 50% 120%; transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.2s, filter 0.2s; will-change: transform; }
 .hand .card.unplayable { filter: brightness(0.6) saturate(0.6); }
 .hand .card.dragging { transition: none; z-index: 50; }
+.hand .card.selected { box-shadow: 0 0 0 2.5px var(--lead), 0 0 0 4px var(--gold-hi), 0 0 22px rgba(245, 220, 150, 0.6); }
 .hand .card.ready { box-shadow: 0 0 0 2.5px var(--lead), 0 0 0 4px var(--gold-hi), 0 0 28px rgba(245, 220, 150, 0.8); }
 .hand .card.fly { transition: transform 0.22s ease-in, opacity 0.22s; }
 .hand .card.drawn { animation: drawIn 0.4s cubic-bezier(0.2, 0.8, 0.3, 1) backwards; }
@@ -738,3 +739,16 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap
 .coach-next { margin-top: 6px; font-family: var(--label); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--parch-dim); text-align: right; }
 .coach-finger { position: fixed; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, 0.95), rgba(255, 240, 200, 0.5) 50%, transparent 70%); box-shadow: 0 0 18px rgba(255, 240, 200, 0.9); animation: swipeUp 1.5s ease-in-out infinite; pointer-events: none; }
 @keyframes swipeUp { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 70% { transform: translateY(-150px); opacity: 1; } 100% { transform: translateY(-170px); opacity: 0; } }
+
+#coach, .overlay, #cardview { cursor: pointer; }
+
+/* --- progression */
+.palier { display: flex; align-items: center; gap: 10px; margin-top: 6px; width: 100%; max-width: 360px; }
+.palier .icon-btn { flex: none; font-family: var(--label); font-size: 24px; color: var(--parch); }
+.palier .icon-btn:disabled { opacity: 0.3; }
+.p-txt { flex: 1; display: flex; flex-direction: column; gap: 2px; font-size: 15px; line-height: 1.25; }
+.p-txt b { font-family: var(--label); font-weight: 400; font-size: 17px; color: var(--gold-hi); }
+.p-hint { font-size: 13px; color: var(--parch-dim); font-style: italic; }
+.hero-pick .lock { font-size: 11px; letter-spacing: 0.04em; text-transform: none; padding: 0 4px; line-height: 1.2; }
+.unlock { color: var(--gold-hi) !important; font-family: var(--label); font-size: 17px !important; }
+.float.burn { color: #ffd08a; text-shadow: 0 0 2px #000, 0 2px 0 #000, 0 0 14px rgba(255, 140, 40, 0.95); }

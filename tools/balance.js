@@ -2,6 +2,7 @@
 /* Équilibrage : un bot simple joue des parties complètes (3 actes) et mesure
  * le taux de victoire et l'acte où il meurt. Usage : node tools/balance.js [parties] */
 'use strict';
+const HERO = process.argv[3] || 'chevalier';
 const path = require('path');
 const vm = require('vm');
 const fs = require('fs');
@@ -41,6 +42,10 @@ function playTurn(G, c) {
       if (k.id === 'ferContreFer') s += c.previewDamage(c.p.block) / cost;
       if (k.id === 'echoCloche') s += need > 0 ? c.p.block : 0;
       if (k.id === 'lumiereChoeur') s += c.p.hp < c.p.maxHp * 0.6 ? 8 : 0;
+      if (v.u) s += (v.u * 1.6) / cost;
+      if (v.h) s += c.p.hp < c.p.maxHp * 0.7 ? v.h / cost : 0;
+      const hpCost = G.cardHp(k);
+      if (hpCost) s -= c.p.hp < c.p.maxHp * 0.35 ? 50 : hpCost * 0.6;
       // achever l'ennemi
       if (v.d && c.previewDamage(v.d) >= c.e.hp + c.e.block) s += 100;
       return s;
@@ -77,7 +82,7 @@ function reward(G, boost) {
 
 function runOnce(G) {
   const R = G.Run;
-  R.newRun('chevalier');
+  R.newRun(HERO);
   for (let act = 1; act <= 3; act++) {
     R.run.act = act;
     const pool = G.ACT_POOLS[act];
@@ -112,6 +117,7 @@ if (require.main === module) main();
 
 function main() {
 const N = Number(process.argv[2]) || 400;
+console.log('Héros :', HERO);
 const G = load();
 let wins = 0;
 const deaths = {};

@@ -34,7 +34,7 @@
   // ================================================================== partie
   const R = {
     run: null,
-    meta: { wins: 0, runs: 0, best: 0 },
+    meta: { wins: 0, runs: 0, best: 0, guardians: 0, palier: {}, winsBy: {} },
   };
   G.Run = R;
 
@@ -85,9 +85,44 @@
     }
   };
 
-  R.newRun = function (heroId) {
+  // ---------------------------------------------------------------- progression entre les parties
+  R.PALIERS = [
+    'Ascension ordinaire.',
+    'Les ennemis ont 10 % de PV en plus.',
+    'Les élites commencent enragées (+2 Force).',
+    'Tu commences avec un Doute dans ton paquet.',
+    'Les autels soignent moitié moins, et tu pars sans fiole.',
+    'Les gardiens ont 20 % de PV en plus et 1 Force.',
+  ];
+  R.heroUnlocked = (id) => !G.HEROES[id].unlock || (R.meta.guardians || 0) >= G.HEROES[id].unlock;
+  R.maxPalier = (id) => Math.min(R.PALIERS.length - 1, (R.meta.palier && R.meta.palier[id]) || 0);
+  /** Enregistre un gardien vaincu ; renvoie les héros nouvellement débloqués. */
+  R.recordGuardian = function () {
+    const before = Object.keys(G.HEROES).filter(R.heroUnlocked);
+    R.meta.guardians = (R.meta.guardians || 0) + 1;
+    R.saveMeta();
+    return Object.keys(G.HEROES).filter((id) => R.heroUnlocked(id) && !before.includes(id));
+  };
+  /** Victoire : débloque le palier suivant pour ce héros. Renvoie le nouveau palier ou null. */
+  R.recordWin = function () {
+    const run = R.run;
+    R.meta.palier = R.meta.palier || {};
+    R.meta.winsBy = R.meta.winsBy || {};
+    R.meta.winsBy[run.hero] = (R.meta.winsBy[run.hero] || 0) + 1;
+    let unlocked = null;
+    if ((run.palier || 0) >= R.maxPalier(run.hero) && R.maxPalier(run.hero) < R.PALIERS.length - 1) {
+      R.meta.palier[run.hero] = (run.palier || 0) + 1;
+      unlocked = R.meta.palier[run.hero];
+    }
+    R.saveMeta();
+    return unlocked;
+  };
+
+  R.newRun = function (heroId, palier) {
     const h = G.HEROES[heroId];
+    palier = palier || 0;
     R.run = {
+      palier,
       hero: heroId,
       hp: h.hp,
       maxHp: h.hp,
@@ -106,6 +141,8 @@
       seenEvents: [],
       seed: Math.floor(Math.random() * 1e9),
     };
+    if (palier >= 3) R.run.deck.push(newCard('doute'));
+    if (palier >= 4) R.run.potions = [];
     R.run.doors = R.makeDoors();
     R.meta.runs++;
     R.saveMeta();
@@ -356,6 +393,9 @@
       this.rng = rand;
       let hp = Math.round(def.hp[0] + rand() * (def.hp[1] - def.hp[0]));
       if (mod === 'cuirasse') hp = Math.round(hp * 1.15);
+      const pal = run.palier || 0;
+      if (pal >= 1) hp = Math.round(hp * 1.1);
+      if (pal >= 5 && def.boss) hp = Math.round(hp * 1.2);
       this.p = { hp: run.hp, maxHp: run.maxHp, block: 0, st: {} };
       this.e = { id: enemyId, def, name: def.name, hp, maxHp: hp, block: 0, st: Object.assign({}, def.start || {}), intent: null, turn: 0, moveKey: null };
       this.pile = shuffle(run.deck.map((c) => Object.assign({}, c)));
@@ -368,6 +408,8 @@
       this.hidden = mod === 'brume';
       this.stolen = 0;
       if (mod === 'fervent') this.e.st.force = (this.e.st.force || 0) + 2;
+      if (pal >= 2 && def.elite) this.e.st.force = (this.e.st.force || 0) + 2;
+      if (pal >= 5 && def.boss) this.e.st.force = (this.e.st.force || 0) + 1;
       if (mod === 'cuirasse') this.e.block = 10;
       this.over = false;
       this.won = false;
@@ -391,11 +433,38 @@
     }
 
     // ----- API utilisée par les cartes et reliques
-    attack(base, hits) {
+    attack(base, hits, drain) {
+      // renvoie les dégâts réellement infligés (hors Armure) ; drain = part rendue en PV
+      const before = this.stats.dealt;
       for (let i = 0; i < (hits || 1); i++) {
         if (this.e.hp <= 0) break;
         this.damage(this.p, this.e, base, true, i);
       }
+      const dealt = this.stats.dealt - before;
+      if (drain && dealt > 0 && this.p.hp > 0) this.heal(Math.floor(dealt * drain));
+      return dealt;
+    }
+    /** Paie des PV (cartes du Saigneur) : ignore l'Armure. */
+    payHp(n) {
+      if (n <= 0) return;
+      this.p.hp = Math.max(0, this.p.hp - n);
+      this.stats.paid = (this.stats.paid || 0) + n;
+      this.emit({ t: 'pay', n });
+      if (this.p.st.soif) this.self('force', this.p.st.soif);
+      this.checkEnd();
+    }
+    /** Ajoute une carte (générée) dans la main. */
+    addToHand(id, n) {
+      for (let i = 0; i < (n || 1); i++) {
+        if (this.hand.length >= 10) break;
+        const c = newCard(id);
+        c.temp = true;
+        this.hand.push(c);
+        this.emit({ t: 'draw', card: c });
+      }
+    }
+    burn() {
+      return this.e.st.brulure || 0;
     }
     pierce(n) {
       this.hit(this.e, n, false, 'pierce');
@@ -465,6 +534,10 @@
       const who = tgt === this.p ? 'p' : 'e';
       if (who === 'e') this.stats.dealt += dmg;
       this.emit({ t: 'hit', who, dmg, blocked, kind, idx: idx || 0 });
+      // Grand calice : chaque coup qui touche rend des PV
+      if (who === 'e' && dmg > 0 && this.p.st.calice && this.p.hp > 0 && kind !== 'burn') {
+        this.p.hp = Math.min(this.p.maxHp, this.p.hp + this.p.st.calice);
+      }
       if (who === 'p' && !this.hpLowUsed && tgt.hp > 0 && tgt.hp * 2 < tgt.maxHp) {
         this.hpLowUsed = true;
         this.relicHook('hpLow');
@@ -501,7 +574,14 @@
         p.st.veille = 0;
       }
       this.stats.atkTurn = 0;
+      this.stats.playedTurn = 0;
       if (p.st.martyre) this.block(p.st.martyre);
+      if (p.st.brasier) this.apply('brulure', p.st.brasier);
+      if (p.st.pacte) {
+        this.payHp(p.st.pacte);
+        this.gainInk(1);
+      }
+      if (this.over) return;
       this.draw(R.drawPerTurn() + (p.st.vigilance || 0));
       this.relicHook('turnStart');
       this.chooseIntent();
@@ -517,7 +597,8 @@
 
     canPlay(card) {
       const cost = G.cardCost(card);
-      return !this.over && cost >= 0 && cost <= this.ink;
+      const hp = G.cardHp(card);
+      return !this.over && cost >= 0 && cost <= this.ink && (!hp || this.p.hp > hp);
     }
 
     play(card) {
@@ -529,9 +610,20 @@
       this.stats.played++;
       R.run.stats.cards++;
       if (def.type === 'atk') this.stats.atkTurn++;
-      def.play(this, G.cardVals(card));
+      const hp = G.cardHp(card);
+      if (hp) this.payHp(hp);
+      const vals = G.cardVals(card);
+      def.play(this, vals);
+      // Écho : la première carte de chaque tour est jouée deux fois
+      if (this.p.st.echo && this.stats.playedTurn === 0 && def.type !== 'pow' && !this.over) {
+        this.emit({ t: 'echo', card });
+        def.play(this, vals);
+      }
+      this.stats.playedTurn = (this.stats.playedTurn || 0) + 1;
+      // Page ardente : chaque Technique enflamme l'ennemi
+      if (def.type === 'skl' && this.p.st.braise && !this.over) this.apply('brulure', this.p.st.braise);
       if (def.type === 'pow') this.emit({ t: 'power', card });
-      else if (def.exhaust) {
+      else if (def.exhaust || card.temp) {
         this.exhausted.push(card);
         this.emit({ t: 'exhaust', card });
       } else this.discard.push(card);
@@ -559,6 +651,16 @@
       const e = this.e;
       if (this.over) return;
       e.block = 0;
+      // Brûlure : dégâts qui ignorent l'Armure, puis s'atténue d'un point
+      if (e.st.brulure > 0) {
+        const b = e.st.brulure;
+        e.hp = Math.max(0, e.hp - b);
+        this.stats.dealt += b;
+        this.emit({ t: 'hit', who: 'e', dmg: b, blocked: 0, kind: 'burn', idx: 0 });
+        e.st.brulure = b - 1;
+        this.checkEnd();
+        if (this.over) return;
+      }
       const m = e.intent;
       this.emit({ t: 'enemyMove', move: m });
       if (m.selfDmg) this.hit(e, m.selfDmg, false, 'self');

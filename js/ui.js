@@ -29,7 +29,7 @@
     menu: 'M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z',
   };
   const icon = (n, cls) => `<svg viewBox="0 0 24 24" class="${cls || ''}" aria-hidden="true"><path d="${ICON[n]}"/></svg>`;
-  const ST_ICON = { force: 'up', faib: 'broken', fel: 'crack', epines: 'thorns', epinesP: 'thorns', rempart: 'tower', martyre: 'heart', veille: 'candle', rituel: 'flame' };
+  const ST_ICON = { force: 'up', faib: 'broken', fel: 'crack', epines: 'thorns', epinesP: 'thorns', rempart: 'tower', martyre: 'heart', veille: 'candle', rituel: 'flame', banniere: 'up', vigilance: 'eye', brulure: 'flame', braise: 'flame', brasier: 'flame', echo: 'eye', soif: 'drop', pacte: 'drop', calice: 'heart' };
   const TYPE_NAME = { atk: 'Attaque', skl: 'Technique', pow: 'Pouvoir', curse: 'Malédiction' };
   const KEYWORDS = {
     Armure: 'Absorbe les dégâts. Disparaît au début de ton tour.',
@@ -70,7 +70,7 @@
     doors: [{ sel: '#map .doors', text: 'À chaque étage, trois portes. <b>Touche une porte</b> pour voir ce qu’elle cache, puis <b>Franchir</b>. Le chemin, c’est toi qui le choisis.' }],
     combat: [
       { sel: '#combat .intent', text: 'Voici ce que l’ennemi fera à son tour. Ici, l’épée indique une <b>attaque</b> et ses dégâts.' },
-      { sel: '#combat .hand', text: '<b>Glisse une carte vers le haut</b> pour la jouer. Un simple toucher l’affiche en grand.', finger: true },
+      { sel: '#combat .hand', text: '<b>Touche une carte</b> pour la choisir, puis <b>touche-la encore</b> pour la jouer. Tu peux aussi la glisser vers le haut. Un appui long l’affiche en grand.', finger: true },
       { sel: '#combat .ink', text: 'Chaque carte coûte de l’<b>Encre</b> (le chiffre bleu). Tu en as 3 par tour.' },
       { sel: '#combat .p-head', text: 'La partie claire de ta jauge : les PV que tu vas perdre si tu termines ton tour. L’<b>Armure</b> la réduit.' },
       { sel: '#combat .end-turn', text: 'Quand tu as fini, <b>termine ton tour</b>. L’ennemi agit, puis tu pioches 5 nouvelles cartes.' },
@@ -193,7 +193,11 @@
         '<div class="foot">Touchez pour fermer</div>'
     );
     ov.classList.add('show');
-    ov.onclick = () => ov.classList.remove('show');
+    // ignore le « clic fantôme » qui suit le toucher ayant ouvert la vue
+    const opened = performance.now();
+    ov.onclick = () => {
+      if (performance.now() - opened > 350) ov.classList.toggle('show', false);
+    };
   }
 
   // ------------------------------------------------------------------ barre du haut
@@ -392,33 +396,58 @@
 
   // ------------------------------------------------------------------ héros
   let selHero = 'chevalier';
+  let selPalier = null;
   function renderHeroes() {
     const el = $('#heroes');
     const h = G.HEROES[selHero];
+    const open = R.heroUnlocked(selHero);
+    const maxP = R.maxPalier(selHero);
+    if (selPalier === null || selPalier > maxP) selPalier = maxP;
+    const g = R.meta.guardians || 0;
+    const lockText = (x) => `Bats ${x.unlock} gardien${x.unlock > 1 ? 's' : ''} (${Math.min(g, x.unlock)}/${x.unlock})`;
+    const wins = (R.meta.winsBy && R.meta.winsBy[selHero]) || 0;
     el.innerHTML =
       `<h2>Choisis ton porteur</h2>` +
       `<div class="hero-row">${Object.values(G.HEROES)
-        .map(
-          (x) =>
-            `<button class="hero-pick ${x.id === selHero ? 'sel' : ''} ${x.locked ? 'locked' : ''}" data-h="${x.id}"><img alt="" src="${G.Art.hero(x.id)}">` +
-            `<div class="nm">${x.name.replace(/^L[ea] /, '')}</div>${x.locked ? '<div class="lock">Bientôt</div>' : ''}</button>`
-        )
+        .map((x) => {
+          const ok = R.heroUnlocked(x.id);
+          return (
+            `<button class="hero-pick ${x.id === selHero ? 'sel' : ''} ${ok ? '' : 'locked'}" data-h="${x.id}"><img alt="" src="${G.Art.hero(x.id)}">` +
+            `<div class="nm">${x.name.replace(/^L[ea] /, '')}</div>${ok ? '' : `<div class="lock">${lockText(x)}</div>`}</button>`
+          );
+        })
         .join('')}</div>` +
       `<div class="hero-info"><h3>${h.name}</h3><div class="sub">${h.title}</div><p>${h.desc}</p>` +
-      (h.locked ? '' : `<div class="facts"><span>${icon('heart')} ${h.hp} PV</span><span>Relique : ${G.RELICS[h.relic].name}</span></div>`) +
+      (open
+        ? `<div class="facts"><span>${icon('heart')} ${h.hp} PV</span><span>Relique : ${G.RELICS[h.relic].name}</span>${wins ? `<span>Victoires : ${wins}</span>` : ''}</div>` +
+          `<div class="palier"><button class="icon-btn" id="p-minus" ${selPalier <= 0 ? 'disabled' : ''} aria-label="Palier inférieur">−</button>` +
+          `<div class="p-txt"><b>Palier ${selPalier}</b><span>${R.PALIERS[selPalier]}</span>${maxP === 0 ? '<span class="p-hint">Gagne une partie pour débloquer le palier 1.</span>' : selPalier > 0 ? '<span class="p-hint">Les paliers s’additionnent.</span>' : ''}</div>` +
+          `<button class="icon-btn" id="p-plus" ${selPalier >= maxP ? 'disabled' : ''} aria-label="Palier supérieur">+</button></div>`
+        : `<div class="facts"><span>${lockText(h)} pour l’éveiller.</span></div>`) +
       `</div>` +
-      `<div class="actions"><button class="btn ghost" id="b-back">Retour</button><button class="btn gold" id="b-start" ${h.locked ? 'disabled' : ''}>Commencer</button></div>`;
+      `<div class="actions"><button class="btn ghost" id="b-back">Retour</button><button class="btn gold" id="b-start" ${open ? '' : 'disabled'}>Commencer</button></div>`;
     $$('.hero-pick', el).forEach((b) => {
       b.onclick = () => {
         selHero = b.dataset.h;
+        selPalier = null;
         renderHeroes();
       };
     });
-    $('.facts svg', el) && ($('.facts svg', el).style.cssText = 'width:16px;height:16px;fill:#c21f31;vertical-align:-2px');
+    $$('.facts svg', el).forEach((s) => (s.style.cssText = 'width:16px;height:16px;fill:#c21f31;vertical-align:-2px'));
+    if (open) {
+      $('#p-minus').onclick = () => {
+        selPalier = Math.max(0, selPalier - 1);
+        renderHeroes();
+      };
+      $('#p-plus').onclick = () => {
+        selPalier = Math.min(maxP, selPalier + 1);
+        renderHeroes();
+      };
+    }
     $('#b-back').onclick = () => go('title', renderTitle);
     $('#b-start').onclick = () => {
-      if (G.HEROES[selHero].locked) return;
-      R.newRun(selHero);
+      if (!R.heroUnlocked(selHero)) return;
+      R.newRun(selHero, selPalier);
       go('map', renderMap).then(() => UI.toast('Acte I · ' + G.ACT_POOLS[1].name));
     };
   }
@@ -458,7 +487,7 @@
     const T = {
       event: ['Mystère', 'Une rencontre inattendue : un choix, un risque, une chance.', 'Imprévisible'],
       merchant: ['Le Marchand', `Cartes, reliques et fioles. Ta bourse : ${run.gold} or.`, 'Achats · effacer une carte'],
-      altar: ['L’Autel', 'Repose-toi ou grave une rune sur une carte.', `Soin de ${Math.round(run.maxHp * 0.3)} PV ou amélioration`],
+      altar: ['L’Autel', 'Repose-toi ou grave une rune sur une carte.', `Soin de ${Math.round(run.maxHp * ((run.palier || 0) >= 4 ? 0.15 : 0.3))} PV ou amélioration`],
       treasure: ['Le Trésor', 'Un reliquaire oublié, sans gardien.', 'Une relique au choix parmi deux'],
     }[d.type];
     return { kicker: NODE_NAME[d.type], title: T[0], art: G.Art.node(d.type), desc: T[1], reward: T[2] };
@@ -701,6 +730,7 @@
     const hand = $('#combat .hand');
     if (!hand) return;
     const keep = new Set(c.hand.map((k) => k.uid));
+    if (selectedUid && !keep.has(selectedUid)) selectedUid = null;
     for (const [uid, el] of handEls) {
       if (!keep.has(uid)) {
         el.remove();
@@ -746,65 +776,156 @@
       const rot = n > 1 ? off * Math.min(5, 22 / n) : 0;
       const y = Math.abs(off) ** 1.8 * 2.2;
       el.dataset.base = `translateX(calc(-50% + ${x}px)) translateY(${y}px) rotate(${rot}deg)`;
-      el.style.transform = el.dataset.base;
+      el.style.transform = card.uid === selectedUid ? el.dataset.base + ' translateY(-34px) scale(1.12)' : el.dataset.base;
+      if (card.uid === selectedUid) {
+        el.style.zIndex = 60;
+        return;
+      }
       el.style.zIndex = 10 + i;
     });
   }
 
+  // ---- gestes sur les cartes
+  // toucher = sélectionner (aperçu), toucher à nouveau = jouer, glisser vers le haut = jouer,
+  // appui long = lire en grand. Le suivi du doigt se fait sur la fenêtre, sans capture de
+  // pointeur (la capture peut rester bloquée sur iOS, surtout dans une page intégrée).
   let drag = null;
+  let selectedUid = null;
+  const LONG_PRESS = 450;
+
   function bindDrag(el, card) {
     el.addEventListener('pointerdown', (e) => {
-      if (C.busy || C.combat.over || drag) return;
+      if (C.busy || C.combat.over) return;
+      if (drag) cancelDrag();
       e.preventDefault();
-      try {
-        el.setPointerCapture(e.pointerId);
-      } catch (err) {
-        /* ignoré */
-      }
-      drag = { el, card, id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), moved: false, ready: false };
+      drag = { el, card, id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), moved: false, ready: false, long: false };
+      drag.timer = setTimeout(() => {
+        if (drag && drag.el === el && !drag.moved) {
+          drag.long = true;
+          const c = card;
+          cancelDrag();
+          openCardView(c);
+        }
+      }, LONG_PRESS);
       el.classList.add('dragging');
-      el.style.transform = el.dataset.base + ' translateY(-26px) scale(1.12)';
+      el.style.transform = el.dataset.base + ' translateY(-30px) scale(1.12)';
       el.style.zIndex = 60;
       showPlayPreview(card);
     });
-    el.addEventListener('pointermove', (e) => {
-      if (!drag || drag.el !== el || e.pointerId !== drag.id) return;
-      const dx = e.clientX - drag.x0;
-      const dy = e.clientY - drag.y0;
-      if (Math.hypot(dx, dy) > 8) drag.moved = true;
-      const playable = C.combat.canPlay(card);
-      drag.ready = dy < -Math.min(110, window.innerHeight * 0.12) && playable;
-      el.classList.toggle('ready', drag.ready);
-      $('#combat .drop-hint').classList.toggle('show', drag.moved && playable);
-      el.style.transform = `translateX(calc(-50% + ${dx + parseBaseX(el)}px)) translateY(${dy - 26}px) rotate(${dx * 0.04}deg) scale(1.12)`;
-    });
-    const up = (e) => {
-      if (!drag || drag.el !== el || e.pointerId !== drag.id) return;
-      const d = drag;
-      drag = null;
-      el.classList.remove('dragging', 'ready');
-      $('#combat .drop-hint').classList.remove('show');
-      clearPlayPreview();
-      if (!d.moved && performance.now() - d.t0 < 400) {
-        layoutHand();
-        openCardView(card);
-        return;
-      }
-      if (d.ready) {
-        playCard(card, el);
-        return;
-      }
-      if (d.moved && e.clientY - d.y0 < -60 && !C.combat.canPlay(card)) {
-        UI.toast(G.cardCost(card) < 0 ? 'Cette carte est injouable.' : 'Pas assez d’Encre.');
-        $('#combat .ink').classList.remove('flash');
-        void $('#combat .ink').offsetWidth;
-        $('#combat .ink').classList.add('flash');
-      }
-      layoutHand();
-    };
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
   }
+
+  function onDragMove(e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { el, card } = drag;
+    const dx = e.clientX - drag.x0;
+    const dy = e.clientY - drag.y0;
+    if (Math.hypot(dx, dy) > 10) drag.moved = true;
+    if (!drag.moved) return;
+    const playable = C.combat.canPlay(card);
+    drag.ready = dy < -Math.min(100, window.innerHeight * 0.11) && playable;
+    el.classList.toggle('ready', drag.ready);
+    $('#combat .drop-hint').classList.toggle('show', playable);
+    el.style.transform = `translateX(calc(-50% + ${dx + parseBaseX(el)}px)) translateY(${dy - 30}px) rotate(${dx * 0.04}deg) scale(1.12)`;
+  }
+
+  function onDragEnd(e) {
+    if (!drag || (e && e.pointerId !== undefined && e.pointerId !== drag.id)) return;
+    const d = drag;
+    clearTimeout(d.timer);
+    drag = null;
+    d.el.classList.toggle('dragging', false);
+    d.el.classList.toggle('ready', false);
+    const hint = $('#combat .drop-hint');
+    if (hint) hint.classList.toggle('show', false);
+    if (d.long || (e && e.type === 'pointercancel')) {
+      deselect();
+      return;
+    }
+    if (!d.moved) {
+      // simple toucher
+      if (selectedUid === d.card.uid) return tryPlay(d.card, d.el);
+      return select(d.card, d.el);
+    }
+    if (d.ready) {
+      selectedUid = null;
+      return playCard(d.card, d.el);
+    }
+    if (e && e.clientY - d.y0 < -60 && !C.combat.canPlay(d.card)) noInk(d.card);
+    deselect();
+  }
+
+  function cancelDrag() {
+    if (!drag) return;
+    clearTimeout(drag.timer);
+    drag.el.classList.toggle('dragging', false);
+    drag.el.classList.toggle('ready', false);
+    drag = null;
+    const hint = $('#combat .drop-hint');
+    if (hint) hint.classList.toggle('show', false);
+    deselect();
+  }
+
+  function select(card, el) {
+    selectedUid = card.uid;
+    handEls.forEach((x) => x.classList.toggle('selected', x === el));
+    el.style.transform = el.dataset.base + ' translateY(-34px) scale(1.12)';
+    el.style.zIndex = 60;
+    showPlayPreview(card);
+    const hint = $('#combat .drop-hint');
+    if (hint) {
+      hint.textContent = C.combat.canPlay(card) ? 'Touche encore pour jouer' : G.cardCost(card) < 0 ? 'Carte injouable' : 'Pas assez d’Encre';
+      hint.classList.add('show');
+    }
+    tutorial('select');
+  }
+
+  function deselect() {
+    selectedUid = null;
+    handEls.forEach((x) => x.classList.toggle('selected', false));
+    const hint = $('#combat .drop-hint');
+    if (hint) {
+      hint.classList.toggle('show', false);
+      hint.textContent = 'Relâche pour jouer';
+    }
+    clearPlayPreview();
+    layoutHand();
+  }
+
+  function tryPlay(card, el) {
+    if (!C.combat.canPlay(card)) {
+      noInk(card);
+      return deselect();
+    }
+    selectedUid = null;
+    const hint = $('#combat .drop-hint');
+    if (hint) hint.classList.toggle('show', false);
+    playCard(card, el);
+  }
+
+  function noInk(card) {
+    UI.toast(G.cardCost(card) < 0 ? 'Cette carte est injouable.' : 'Pas assez d’Encre.');
+    const ink = $('#combat .ink');
+    if (ink) {
+      ink.classList.toggle('flash', false);
+      void ink.offsetWidth;
+      ink.classList.add('flash');
+    }
+  }
+
+  window.addEventListener('pointermove', onDragMove, { passive: true });
+  window.addEventListener('pointerup', onDragEnd);
+  window.addEventListener('pointercancel', onDragEnd);
+  window.addEventListener('blur', cancelDrag);
+  document.addEventListener('visibilitychange', cancelDrag);
+  // toucher hors de la main : annule la sélection ; un autre doigt annule un geste resté coincé
+  document.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (drag && e.pointerId !== drag.id) cancelDrag();
+      if (selectedUid && current === 'combat' && !e.target.closest('.hand .card') && !e.target.closest('.potion, #tip')) deselect();
+    },
+    true
+  );
   // aperçu de l'effet d'une carte sur les jauges pendant qu'on la tient
   function showPlayPreview(card) {
     const c = C.combat;
@@ -969,7 +1090,7 @@
     switch (ev.t) {
       case 'hit': {
         const at = ev.who === 'e' ? { x: pe.x, y: pe.y - 10 } : pp;
-        if (ev.dmg > 0) floatText(ev.dmg, at.x, at.y, ev.dmg >= 15 ? 'big' : '', delay);
+        if (ev.dmg > 0) floatText(ev.dmg, at.x, at.y, (ev.dmg >= 15 ? 'big ' : '') + (ev.kind === 'burn' ? 'burn' : ''), delay);
         else if (ev.blocked > 0) floatText('Bloqué', at.x, at.y, 'blocked', delay);
         setTimeout(() => {
           if (ev.who === 'e') {
@@ -1021,6 +1142,12 @@
       case 'enemyMove':
         banner(ev.move.name);
         break;
+      case 'pay':
+        floatText(`−${ev.n} PV`, pp.x, pp.y - 10, 'label bad', delay);
+        break;
+      case 'echo':
+        banner('Écho !');
+        break;
       case 'steal':
         floatText(`−${ev.n} or`, pp.x, pp.y - 20, 'label bad', delay);
         setTimeout(() => UI.toast(`Il t’a volé ${ev.n} or. Abats-le pour le récupérer !`), 300);
@@ -1071,6 +1198,11 @@
     }
     if (type === 'boss') {
       run.stats.bosses++;
+      const woke = R.recordGuardian();
+      if (woke.length) {
+        run.unlocks = (run.unlocks || []).concat(woke);
+        setTimeout(() => UI.toast(`${G.HEROES[woke[0]].name} s’éveille : un nouveau porteur t’attend !`), 1600);
+      }
       reward.gold = R.gainGold(70);
       reward.bossRelics = G.shuffle(R.relicPool(['boss'])).slice(0, 3);
     }
@@ -1187,7 +1319,7 @@
     const run = R.run;
     const el = $('#altar');
     const noHeal = R.has('ostensoir');
-    const heal = Math.round(run.maxHp * 0.3) + (R.has('sceau') ? 15 : 0);
+    const heal = Math.round(run.maxHp * ((run.palier || 0) >= 4 ? 0.15 : 0.3)) + (R.has('sceau') ? 15 : 0);
     el.innerHTML =
       topbar(whereText()) +
       `<div class="panel-head"><h2>L’Autel</h2><p>Les cierges brûlent sans fondre. Une seule grâce t’est accordée.</p></div>` +
@@ -1469,8 +1601,10 @@
     const s = run.stats;
     if (won) R.meta.wins++;
     R.meta.best = Math.max(R.meta.best || 0, run.act);
+    const newPalier = won ? R.recordWin() : null;
     R.saveMeta();
     R.clear();
+    const unlocks = run.unlocks || [];
     const el = $('#end');
     go('end', () => {
       el.innerHTML =
@@ -1478,6 +1612,8 @@
         `<h2>${won ? 'La rosace est sauve' : 'Ton vitrail s’est brisé'}</h2>` +
         `<p>${won ? 'Aldric s’effondre en mille éclats de lumière. Dans la nef, le jour revient, couleur de rubis et de saphir.' : `Tu es tombé à l’acte ${ROMAN[run.act]}, ${G.ACT_POOLS[run.act].name.toLowerCase()}. Le grimoire se referme, mais il se souviendra.`}</p>` +
         `<div class="end-stats"><div><b>${run.floor}</b><small>Étages</small></div><div><b>${s.kills}</b><small>Ennemis</small></div><div><b>${s.cards}</b><small>Cartes jouées</small></div></div>` +
+        (newPalier ? `<p class="unlock">Palier ${newPalier} débloqué pour ${G.HEROES[run.hero].name.toLowerCase()} : ${R.PALIERS[newPalier]}</p>` : '') +
+        unlocks.map((id) => `<p class="unlock">${G.HEROES[id].name} s’est éveillé${id === 'sorciere' ? 'e' : ''} !</p>`).join('') +
         `<div class="menu"><button class="btn gold" id="b-again">Nouvelle ascension</button><button class="btn ghost" id="b-home">Titre</button></div>`;
       $('#b-again').onclick = () => go('heroes', renderHeroes);
       $('#b-home').onclick = () => go('title', renderTitle);

@@ -448,6 +448,19 @@
       });
     },
   };
+  M.star = {
+    draw: (x) => {
+      const pts = [];
+      for (let i = 0; i < 16; i++) {
+        const ang = -Math.PI / 2 + (i / 16) * Math.PI * 2;
+        const r = i % 2 ? 16 : i % 4 === 0 ? 46 : 30;
+        pts.push(50 + Math.cos(ang) * r, 50 + Math.sin(ang) * r);
+      }
+      poly(x, pts, A);
+      circ(x, 50, 50, 13, C);
+      for (let i = 0; i < 6; i++) circ(x, 50 + Math.cos(i) * 40, 50 + Math.sin(i * 1.7) * 40, 2.5, B);
+    },
+  };
   M.moon = {
     draw: (x) => {
       circ(x, 50, 50, 38, A);
@@ -1224,7 +1237,10 @@
     render,
     cardArt(id) {
       const def = G.CARDS[id];
-      const st = TYPE_STYLE[def.type];
+      let st = TYPE_STYLE[def.type];
+      // chaque héros a sa lumière : améthyste et ambre pour la Sorcière, rubis et nuit pour le Saigneur
+      if (def.hero === 'sorciere') st = Object.assign({}, st, { pal: { atk: 'ambre', skl: 'amethyste', pow: 'nuit' }[def.type] || st.pal, a: def.type === 'pow' ? 'or' : 'os' });
+      if (def.hero === 'saigneur') st = Object.assign({}, st, { pal: { atk: 'rubis', skl: 'nuit', pow: 'rubis' }[def.type] || st.pal, c: 'sang' });
       return url('card:' + id, {
         w: Math.round(150 * DPR), h: Math.round(104 * DPR), seed: seedOf(id), motif: def.art,
         pal: st.pal, a: st.a, b: st.b, c: st.c, cell: 34, layout: 'grid', light: [0.5, 0.0], scale: 1.04,
@@ -1243,7 +1259,8 @@
       const h = G.HEROES[id];
       return url('hero:' + id, {
         w: Math.round(160 * DPR), h: Math.round(220 * DPR), seed: seedOf(id), motif: h.art, figure: true,
-        pal: h.color, a: h.color === 'saphir' ? 'os' : 'or', b: h.color, c: 'braise', cell: 28,
+        // le Chevalier porte une armure claire sur fond saphir ; les autres une robe à leur couleur sur fond de nuit
+        pal: h.color === 'saphir' ? 'saphir' : 'nuit', a: h.color === 'saphir' ? 'os' : h.color, b: h.color === 'saphir' ? 'saphir' : 'os', c: 'braise', cell: 28,
         layout: 'radial', center: [0.5, 0.38], shape: 'arch', light: [0.5, 0.3], halo: true,
       });
     },

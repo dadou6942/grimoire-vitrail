@@ -264,6 +264,317 @@
     art: 'eye', quote: 'Le sommeil est pour les gisants.',
   });
 
+  // ---------- Sorcière (améthyste) : brûlure et sorts enchaînés
+  const SO = 'sorciere';
+  card('trait', {
+    hero: SO, name: 'Trait de cendre', type: 'atk', rarity: 'start', cost: 1,
+    v: { d: 6 }, up: { d: 9 }, text: 'Inflige {D} dégâts.',
+    play: (c, v) => c.attack(v.d),
+    art: 'feather', quote: 'La plume trempée dans la braise écrit en lettres de feu.',
+  });
+  card('voile', {
+    hero: SO, name: 'Voile d’ombre', type: 'skl', rarity: 'start', cost: 1,
+    v: { b: 5 }, up: { b: 8 }, text: 'Gagne {b} Armure.',
+    play: (c, v) => c.block(v.b),
+    art: 'moon', quote: 'La nuit m’habille.',
+  });
+  card('embrasement', {
+    hero: SO, name: 'Embrasement', type: 'skl', rarity: 'start', cost: 1,
+    v: { u: 3 }, up: { u: 5 }, text: 'Applique {u} Brûlure.',
+    play: (c, v) => c.apply('brulure', v.u),
+    art: 'flame', quote: 'Tout ce qui brûle finit par parler.',
+  });
+  card('etincelle', {
+    hero: SO, name: 'Étincelle', type: 'atk', rarity: 'c', cost: 0,
+    v: { d: 3, u: 1 }, up: { d: 4, u: 2 }, text: 'Inflige {D} dégâts. Applique {u} Brûlure.',
+    play: (c, v) => {
+      c.attack(v.d);
+      c.apply('brulure', v.u);
+    },
+    art: 'star', quote: 'Il suffit d’une seule.',
+  });
+  card('litanie', {
+    hero: SO, name: 'Litanie', type: 'atk', rarity: 'c', cost: 1,
+    v: { d: 4, x: 2 }, up: { d: 5, x: 3 }, text: 'Inflige {D} dégâts, +{x} par carte déjà jouée ce tour.',
+    play: (c, v) => c.attack(v.d + v.x * (c.stats.playedTurn || 0)),
+    art: 'book', quote: 'Chaque verset appelle le suivant.',
+  });
+  card('cendresVives', {
+    hero: SO, name: 'Cendres vives', type: 'skl', rarity: 'c', cost: 1,
+    v: { u: 2 }, up: { u: 4 }, text: 'Applique {u} Brûlure. Pioche 1 carte.',
+    play: (c, v) => {
+      c.apply('brulure', v.u);
+      c.draw(1);
+    },
+    art: 'flame', quote: 'Souffle doucement, et la braise répond.',
+  });
+  card('murCendres', {
+    hero: SO, name: 'Mur de cendres', type: 'skl', rarity: 'c', cost: 1,
+    v: { b: 7, x: 4 }, up: { b: 9, x: 5 }, text: 'Gagne {b} Armure, et {x} de plus si l’ennemi brûle.',
+    play: (c, v) => c.block(v.b + (c.burn() > 0 ? v.x : 0)),
+    art: 'tower', quote: 'Un rempart de suie entre moi et toi.',
+  });
+  card('murmure', {
+    hero: SO, name: 'Murmure', type: 'skl', rarity: 'c', cost: 0, exhaust: true,
+    v: { n: 2 }, up: { n: 3 }, text: 'Pioche {n} cartes. Épuise.',
+    play: (c, v) => c.draw(v.n),
+    art: 'eye', quote: 'Les pages tournent toutes seules.',
+  });
+  card('flecheSoufre', {
+    hero: SO, name: 'Flèche de soufre', type: 'atk', rarity: 'c', cost: 1,
+    v: { d: 8 }, up: { d: 11 }, text: 'Inflige {D} dégâts. Applique 1 Faiblesse.',
+    play: (c, v) => {
+      c.attack(v.d);
+      c.apply('faib', 1);
+    },
+    art: 'lance', quote: 'Elle sent l’œuf pourri et l’enfer.',
+  });
+  card('braiseNoire', {
+    hero: SO, name: 'Braise noire', type: 'atk', rarity: 'c', cost: 2,
+    v: { d: 7 }, up: { d: 10 }, text: 'Inflige {D} dégâts. Augmente de moitié la Brûlure de l’ennemi.',
+    play: (c, v) => {
+      c.attack(v.d);
+      if (c.burn() > 1) c.apply('brulure', Math.floor(c.burn() / 2));
+    },
+    art: 'flame', quote: 'Le feu noir ne s’éteint jamais tout à fait.',
+  });
+  card('sceauLunaire', {
+    hero: SO, name: 'Sceau lunaire', type: 'skl', rarity: 'c', cost: 1,
+    v: { b: 6 }, up: { b: 9 }, text: 'Gagne {b} Armure. Au prochain tour, gagne 1 Encre.',
+    play: (c, v) => {
+      c.block(v.b);
+      c.self('veille', 1);
+    },
+    art: 'moon', quote: 'La lune garde ce que je lui confie.',
+  });
+  card('combustion', {
+    hero: SO, name: 'Combustion', type: 'atk', rarity: 'u', cost: 1,
+    v: { d: 4 }, up: { d: 7 }, text: 'Inflige {D} dégâts, plus la Brûlure de l’ennemi.',
+    play: (c, v) => c.attack(v.d + c.burn()),
+    preview: (c, v) => v.d + c.burn(),
+    art: 'sun', quote: 'Ce qui couvait éclate.',
+  });
+  card('pageArdente', {
+    hero: SO, name: 'Page ardente', type: 'pow', rarity: 'u', cost: 1,
+    v: { u: 1 }, up: { u: 2 }, text: 'Chaque fois que tu joues une Technique, applique {u} Brûlure.',
+    play: (c, v) => c.self('braise', v.u),
+    art: 'book', quote: 'Le grimoire s’enflamme sans se consumer.',
+  });
+  card('cercleCendre', {
+    hero: SO, name: 'Cercle de cendre', type: 'skl', rarity: 'u', cost: 2,
+    v: { b: 11, u: 2 }, up: { b: 14, u: 3 }, text: 'Gagne {b} Armure. Applique {u} Brûlure.',
+    play: (c, v) => {
+      c.block(v.b);
+      c.apply('brulure', v.u);
+    },
+    art: 'rose', quote: 'Nul ne franchit le cercle.',
+  });
+  card('incantation', {
+    hero: SO, name: 'Incantation', type: 'skl', rarity: 'u', cost: 1, upCost: 0, exhaust: true,
+    v: {}, up: {}, text: 'Gagne 2 Encre. Épuise.',
+    play: (c) => c.gainInk(2),
+    art: 'chalice', quote: 'Les mots anciens ont un goût de fer.',
+  });
+  card('tisonnier', {
+    hero: SO, name: 'Tisonnier', type: 'atk', rarity: 'u', cost: 1,
+    v: { d: 5 }, up: { d: 7 }, text: 'Inflige {D} dégâts deux fois. Applique 1 Brûlure par coup.',
+    play: (c, v) => {
+      c.attack(v.d);
+      c.apply('brulure', 1);
+      c.attack(v.d);
+      c.apply('brulure', 1);
+    },
+    art: 'sword', quote: 'Remue les braises, et elles mordent.',
+  });
+  card('evocation', {
+    hero: SO, name: 'Évocation', type: 'skl', rarity: 'u', cost: 1,
+    v: { n: 2 }, up: { n: 3 }, text: 'Ajoute {n} Étincelles à ta main (elles s’épuisent).',
+    play: (c, v) => c.addToHand('etincelle', v.n),
+    art: 'star', quote: 'Viens, petite flamme. Et tes sœurs aussi.',
+  });
+  card('maledictionCendres', {
+    hero: SO, name: 'Anathème', type: 'skl', rarity: 'u', cost: 1, exhaust: true,
+    v: { f: 2 }, up: { f: 3 }, text: 'Applique {f} Fêlure et {f} Faiblesse. Épuise.',
+    play: (c, v) => {
+      c.apply('fel', v.f);
+      c.apply('faib', v.f);
+    },
+    art: 'skull', quote: 'Que ton verre se fende et ton bras se lasse.',
+  });
+  card('brasier', {
+    hero: SO, name: 'Brasier', type: 'pow', rarity: 'r', cost: 2,
+    v: { u: 2 }, up: { u: 3 }, text: 'Au début de chaque tour, applique {u} Brûlure.',
+    play: (c, v) => c.self('brasier', v.u),
+    art: 'flame', quote: 'La nef entière devient fournaise.',
+  });
+  card('pluieFeu', {
+    hero: SO, name: 'Pluie de feu', type: 'atk', rarity: 'r', cost: 3,
+    v: { d: 4 }, up: { d: 5 }, text: 'Inflige {D} dégâts 5 fois. Applique 1 Brûlure par coup.',
+    play: (c, v) => {
+      for (let i = 0; i < 5; i++) {
+        c.attack(v.d);
+        c.apply('brulure', 1);
+      }
+    },
+    art: 'sun', quote: 'Le ciel de la rosace se met à pleuvoir.',
+  });
+  card('echoInterdit', {
+    hero: SO, name: 'Écho interdit', type: 'pow', rarity: 'r', cost: 3, upCost: 2,
+    v: {}, up: {}, text: 'La première carte jouée à chaque tour est jouée deux fois.',
+    play: (c) => c.self('echo', 1),
+    art: 'bell', quote: 'Ce que je dis, la voûte le redit.',
+  });
+  card('phenix', {
+    hero: SO, name: 'Cendres du phénix', type: 'skl', rarity: 'r', cost: 2, exhaust: true,
+    v: { h: 10, u: 5 }, up: { h: 15, u: 7 }, text: 'Soigne {h} PV. Applique {u} Brûlure. Épuise.',
+    play: (c, v) => {
+      c.heal(v.h);
+      c.apply('brulure', v.u);
+    },
+    art: 'feather', quote: 'Je renais de ce qui te consume.',
+  });
+
+  // ---------- Saigneur (rubis) : payer en PV, vol de vie, frénésie
+  const SA = 'saigneur';
+  card('entaille', {
+    hero: SA, name: 'Entaille', type: 'atk', rarity: 'start', cost: 1,
+    v: { d: 6 }, up: { d: 9 }, text: 'Inflige {D} dégâts.',
+    play: (c, v) => c.attack(v.d),
+    art: 'axe', quote: 'Une ligne rouge, nette comme une prière.',
+  });
+  card('gardeFer', {
+    hero: SA, name: 'Garde de fer', type: 'skl', rarity: 'start', cost: 1,
+    v: { b: 5 }, up: { b: 8 }, text: 'Gagne {b} Armure.',
+    play: (c, v) => c.block(v.b),
+    art: 'shield', quote: 'Même le sang a besoin d’un rempart.',
+  });
+  card('saignee', {
+    hero: SA, name: 'Saignée', type: 'atk', rarity: 'start', cost: 0, hp: 3,
+    v: { d: 10 }, up: { d: 14 }, text: 'Paie 3 PV. Inflige {D} dégâts.',
+    play: (c, v) => c.attack(v.d),
+    art: 'drop', quote: 'Je te donne mon sang ; tu me donnes le tien.',
+  });
+  card('morsureSang', {
+    hero: SA, name: 'Morsure', type: 'atk', rarity: 'c', cost: 1,
+    v: { d: 7 }, up: { d: 10 }, text: 'Inflige {D} dégâts. Rends-toi la moitié des dégâts infligés en PV.',
+    play: (c, v) => c.attack(v.d, 1, 0.5),
+    art: 'skull', quote: 'Le goût du fer, puis la chaleur.',
+  });
+  card('petitPacte', {
+    hero: SA, name: 'Petit pacte', type: 'skl', rarity: 'c', cost: 0, hp: 2, upHp: 1,
+    v: {}, up: {}, text: 'Paie 2 PV. Gagne 1 Encre. Pioche 1 carte.', textUp: 'Paie 1 PV. Gagne 1 Encre. Pioche 1 carte.',
+    play: (c) => {
+      c.gainInk(1);
+      c.draw(1);
+    },
+    art: 'hand', quote: 'Un doigt, pas la main entière.',
+  });
+  card('lameEcarlate', {
+    hero: SA, name: 'Lame écarlate', type: 'atk', rarity: 'c', cost: 1,
+    v: { d: 7, x: 7 }, up: { d: 9, x: 9 }, text: 'Inflige {D} dégâts, et {x} de plus si tes PV sont sous la moitié.',
+    play: (c, v) => c.attack(v.d + (c.p.hp * 2 < c.p.maxHp ? v.x : 0)),
+    art: 'sword', quote: 'Plus je saigne, plus je frappe.',
+  });
+  card('carapaceSang', {
+    hero: SA, name: 'Carapace de sang', type: 'skl', rarity: 'c', cost: 1, hp: 2,
+    v: { b: 9 }, up: { b: 12 }, text: 'Paie 2 PV. Gagne {b} Armure.',
+    play: (c, v) => c.block(v.b),
+    art: 'shield', quote: 'Le sang séché fait une armure étonnante.',
+  });
+  card('frappeAveugle', {
+    hero: SA, name: 'Frappe aveugle', type: 'atk', rarity: 'c', cost: 2, hp: 4,
+    v: { d: 20 }, up: { d: 26 }, text: 'Paie 4 PV. Inflige {D} dégâts.',
+    play: (c, v) => c.attack(v.d),
+    art: 'fist', quote: 'Je ne vois plus rien. Je n’en ai pas besoin.',
+  });
+  card('transfusion', {
+    hero: SA, name: 'Transfusion', type: 'skl', rarity: 'c', cost: 1,
+    v: { h: 4 }, up: { h: 7 }, text: 'Soigne {h} PV. Pioche 1 carte.',
+    play: (c, v) => {
+      c.heal(v.h);
+      c.draw(1);
+    },
+    art: 'chalice', quote: 'Ce qui coule peut aussi remonter.',
+  });
+  card('griffes', {
+    hero: SA, name: 'Griffes', type: 'atk', rarity: 'c', cost: 1,
+    v: { d: 3 }, up: { d: 4 }, text: 'Inflige {D} dégâts trois fois.',
+    play: (c, v) => c.attack(v.d, 3),
+    art: 'axe', quote: 'Trois sillons, trois souvenirs.',
+  });
+  card('hemorragie', {
+    hero: SA, name: 'Hémorragie', type: 'atk', rarity: 'c', cost: 1,
+    v: { d: 5, f: 2 }, up: { d: 7, f: 3 }, text: 'Inflige {D} dégâts. Applique {f} Fêlure.',
+    play: (c, v) => {
+      c.attack(v.d);
+      c.apply('fel', v.f);
+    },
+    art: 'drop', quote: 'La plaie s’ouvre et ne se referme plus.',
+  });
+  card('soif', {
+    hero: SA, name: 'Soif', type: 'pow', rarity: 'u', cost: 1, upCost: 0,
+    v: {}, up: {}, text: 'Chaque fois que tu paies des PV, gagne 1 Force.',
+    play: (c) => c.self('soif', 1),
+    art: 'chalice', quote: 'Chaque goutte versée m’en réclame une autre.',
+  });
+  card('sacrifice', {
+    hero: SA, name: 'Sacrifice', type: 'skl', rarity: 'u', cost: 1, hp: 6, upHp: 4,
+    v: {}, up: {}, text: 'Paie 6 PV. Gagne 2 Encre et pioche 2 cartes.', textUp: 'Paie 4 PV. Gagne 2 Encre et pioche 2 cartes.',
+    play: (c) => {
+      c.gainInk(2);
+      c.draw(2);
+    },
+    art: 'heart', quote: 'On n’ouvre pas la porte sans s’ouvrir la main.',
+  });
+  card('etreinte', {
+    hero: SA, name: 'Étreinte vampirique', type: 'atk', rarity: 'u', cost: 2, exhaust: true,
+    v: { d: 12 }, up: { d: 17 }, text: 'Inflige {D} dégâts. Rends-toi tous les dégâts infligés en PV. Épuise.',
+    play: (c, v) => c.attack(v.d, 1, 1),
+    art: 'heart', quote: 'Viens plus près.',
+  });
+  card('rage', {
+    hero: SA, name: 'Rage écarlate', type: 'skl', rarity: 'u', cost: 1, hp: 3,
+    v: { s: 2 }, up: { s: 3 }, text: 'Paie 3 PV. Gagne {s} Force.',
+    play: (c, v) => c.self('force', v.s),
+    art: 'flame', quote: 'La douleur est un tambour de guerre.',
+  });
+  card('cicatrices', {
+    hero: SA, name: 'Cicatrices', type: 'skl', rarity: 'u', cost: 1,
+    v: { m: 20 }, up: { m: 30 }, text: 'Gagne 1 Armure pour 2 PV manquants (au plus {m}).',
+    play: (c, v) => c.block(Math.min(v.m, Math.floor((c.p.maxHp - c.p.hp) / 2))),
+    art: 'shield', quote: 'Chaque marque est un bouclier.',
+  });
+  card('communion', {
+    hero: SA, name: 'Communion', type: 'atk', rarity: 'u', cost: 1,
+    v: { d: 4 }, up: { d: 8 }, text: 'Inflige {D} dégâts, plus les PV que tu as payés ce combat (au plus 30).',
+    play: (c, v) => c.attack(v.d + Math.min(30, c.stats.paid || 0)),
+    art: 'chalice', quote: 'Bois, c’est mon sang offert.',
+  });
+  card('pacteSang', {
+    hero: SA, name: 'Pacte de sang', type: 'pow', rarity: 'r', cost: 1,
+    v: { n: 2 }, up: { n: 1 }, text: 'Au début de chaque tour, paie {n} PV et gagne 1 Encre.',
+    play: (c, v) => c.self('pacte', v.n),
+    art: 'book', quote: 'Signé, scellé, saigné.',
+  });
+  card('grandCalice', {
+    hero: SA, name: 'Grand calice', type: 'pow', rarity: 'r', cost: 2, upCost: 1,
+    v: {}, up: {}, text: 'Chaque coup qui te fait infliger des dégâts te soigne de 1 PV.',
+    play: (c) => c.self('calice', 1),
+    art: 'chalice', quote: 'La coupe ne désemplit jamais.',
+  });
+  card('massacre', {
+    hero: SA, name: 'Massacre', type: 'atk', rarity: 'r', cost: 3, hp: 5,
+    v: { d: 32 }, up: { d: 42 }, text: 'Paie 5 PV. Inflige {D} dégâts.',
+    play: (c, v) => c.attack(v.d),
+    art: 'axe', quote: 'Il ne restera que le silence et le rouge.',
+  });
+  card('dernierSouffle', {
+    hero: SA, name: 'Dernier souffle', type: 'skl', rarity: 'r', cost: 2, exhaust: true,
+    v: { b: 12, x: 30 }, up: { b: 16, x: 40 }, text: 'Gagne {b} Armure, ou {x} si tes PV sont sous le quart. Épuise.',
+    play: (c, v) => c.block(c.p.hp * 4 < c.p.maxHp ? v.x : v.b),
+    art: 'heart', quote: 'Pas encore.',
+  });
+
   // ---------- malédictions
   card('doute', {
     name: 'Doute', type: 'curse', rarity: 'curse', cost: -1, unplayable: true,
@@ -285,12 +596,16 @@
       desc: 'Armure, contre-attaques et endurance. Il tient la ligne jusqu’à ce que l’ennemi se brise.',
     },
     sorciere: {
-      id: 'sorciere', name: 'La Sorcière', title: 'Lectrice des cendres', color: 'amethyste', locked: true, art: 'witch',
-      desc: 'Sorts enchaînés et brûlures. Bientôt.',
+      id: 'sorciere', name: 'La Sorcière', title: 'Lectrice des cendres', hp: 66, color: 'amethyste',
+      deck: ['trait', 'trait', 'trait', 'trait', 'trait', 'voile', 'voile', 'voile', 'voile', 'embrasement'],
+      relic: 'cendrier', art: 'witch', unlock: 1,
+      desc: 'Elle enflamme l’ennemi et enchaîne les sorts. La Brûlure ronge sa cible à chaque tour, à travers l’Armure.',
     },
     saigneur: {
-      id: 'saigneur', name: 'Le Saigneur', title: 'Prêtre du sang', color: 'rubis', locked: true, art: 'bleeder',
-      desc: 'Paie en sang des coups dévastateurs. Bientôt.',
+      id: 'saigneur', name: 'Le Saigneur', title: 'Prêtre du sang', hp: 90, color: 'rubis',
+      deck: ['entaille', 'entaille', 'entaille', 'entaille', 'entaille', 'gardeFer', 'gardeFer', 'gardeFer', 'gardeFer', 'saignee'],
+      relic: 'calice', art: 'bleeder', unlock: 3,
+      desc: 'Il paie en PV des coups dévastateurs et se soigne en volant la vie. Plus il saigne, plus il frappe fort.',
     },
   };
 
@@ -306,6 +621,13 @@
     veille: { name: 'Veille', icon: 'veille', good: true, desc: 'Gagne {n} Encre au prochain tour.' },
     rituel: { name: 'Rituel', icon: 'force', good: true, desc: 'Gagne {n} Force à la fin de chaque tour.' },
     banniere: { name: 'Bannière', icon: 'banniere', good: true, desc: 'Inflige {n} dégâts chaque fois que tu gagnes de l’Armure.' },
+    brulure: { name: 'Brûlure', icon: 'flame', good: false, desc: 'Subit {n} dégâts au début de son tour (à travers l’Armure), puis la Brûlure baisse de 1.' },
+    braise: { name: 'Page ardente', icon: 'flame', good: true, desc: 'Chaque Technique jouée applique {n} Brûlure.' },
+    brasier: { name: 'Brasier', icon: 'flame', good: true, desc: 'Applique {n} Brûlure au début de chaque tour.' },
+    echo: { name: 'Écho', icon: 'bell', good: true, desc: 'La première carte de chaque tour est jouée deux fois.' },
+    soif: { name: 'Soif', icon: 'drop', good: true, desc: 'Gagne {n} Force chaque fois que tu paies des PV.' },
+    pacte: { name: 'Pacte de sang', icon: 'drop', good: true, desc: 'Paie {n} PV et gagne 1 Encre au début de chaque tour.' },
+    calice: { name: 'Grand calice', icon: 'heart', good: true, desc: 'Chaque coup qui inflige des dégâts te soigne de {n} PV.' },
     vigilance: { name: 'Vigilance', icon: 'veille', good: true, desc: 'Pioche {n} carte(s) de plus à chaque tour.' },
   };
 
@@ -499,6 +821,8 @@
   // ------------------------------------------------------------------ reliques
   // hooks : combatStart(c), turnStart(c), combatEnd(run), cardPlayed(c, card), hpLow(c)
   const RELICS = {
+    cendrier: { name: 'Cendrier ardent', rarity: 'start', art: 'flame', pal: 'amethyste', desc: 'Au début de chaque combat, applique 3 Brûlure à l’ennemi.', combatStart: (c) => c.apply('brulure', 3) },
+    calice: { name: 'Calice de sang', rarity: 'start', art: 'chalice', pal: 'rubis', desc: 'Après chaque combat, soigne 9 PV.', combatEnd: () => G.Run.heal(9) },
     ecuSaphir: { name: 'Écu de saphir', rarity: 'start', art: 'shield', pal: 'saphir', desc: 'Au début de chaque combat, gagne 6 Armure.', combatStart: (c) => c.block(6) },
     chapelet: { name: 'Chapelet d’ambre', rarity: 'c', art: 'rose', pal: 'ambre', desc: 'Après chaque combat, soigne 6 PV.', combatEnd: (run) => G.Run.heal(6) },
     encrier: { name: 'Encrier sans fond', rarity: 'c', art: 'chalice', pal: 'nuit', desc: '+1 Encre au premier tour de chaque combat.', turnStart: (c) => c.turn === 1 && c.gainInk(1) },
@@ -633,6 +957,12 @@
     if (def.unplayable) return -1;
     if (cardInst.up && def.upCost !== undefined) return def.upCost;
     return def.cost;
+  };
+  /** PV à payer pour jouer la carte (Saigneur). */
+  G.cardHp = function (cardInst) {
+    const def = CARDS[cardInst.id];
+    if (!def.hp) return 0;
+    return cardInst.up && def.upHp !== undefined ? def.upHp : def.hp;
   };
   G.cardVals = (cardInst) => {
     const def = CARDS[cardInst.id];

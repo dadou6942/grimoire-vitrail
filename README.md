@@ -26,8 +26,8 @@ Le dossier se publie tel quel sur GitHub Pages (Settings → Pages → branche `
   - **Enragé** : l'ennemi commence avec 2 Force. Tu gagnes plus d'or et des cartes plus rares.
   - **Cuirassé** : l'ennemi est plus robuste. Tu gagnes le double d'or.
   - **Dans la brume** : ses intentions sont cachées. Une fiole t'est garantie.
-- Chaque combat est un duel. Tu disposes de **3 points d'Encre** par tour et tu pioches 5 cartes. Pour jouer une carte, **fais-la glisser vers le haut**.
-  Touche une carte pour la lire en grand.
+- Chaque combat est un duel. Tu disposes de **3 points d'Encre** par tour et tu pioches 5 cartes.
+  **Touche une carte** pour la choisir, puis **touche-la encore** pour la jouer, ou fais-la glisser vers le haut. Un appui long l'affiche en grand.
 - Dès que ton doigt se pose sur une carte, les jauges **montrent son effet** : PV retirés à l'ennemi et Armure gagnée.
   La partie claire de ta jauge indique les PV que tu perdras si tu termines ton tour.
 - L'icône au-dessus de l'ennemi annonce **son prochain geste** et ses dégâts exacts.
@@ -41,7 +41,12 @@ Le dossier se publie tel quel sur GitHub Pages (Settings → Pages → branche `
 
 ## Contenu
 
-- **Le Chevalier** : 34 cartes (armure, épines, contre-attaques, bannière). La Sorcière et le Saigneur arrivent dans une prochaine version.
+- **Trois héros**, chacun avec ses cartes et sa relique :
+  - **le Chevalier** (34 cartes) : armure, épines, contre-attaques ;
+  - **la Sorcière** (22 cartes) : la **Brûlure** ronge l'ennemi à chaque tour, à travers l'Armure, et ses sorts s'enchaînent ;
+  - **le Saigneur** (21 cartes) : il **paie en PV** des coups dévastateurs et vole la vie.
+- **Progression entre les parties** : la Sorcière s'éveille après ton premier gardien vaincu, le Saigneur après le troisième.
+  Chaque victoire débloque le **palier** suivant (5 paliers de difficulté cumulables) pour le héros qui l'a remportée.
 - **24 ennemis** : 15 ennemis, 6 élites et 3 gardiens, du Rat-moine voleur à Aldric, l'Évêque de verre.
 - **21 reliques**, **8 fioles** et **10 événements**.
 
@@ -59,4 +64,4 @@ tools/enemies.js        PV perdus par combat avec le paquet de départ
 tools/make-icons.js     icônes de l'application
 ```
 
-Équilibrage : `node tools/balance.js 500`. Le bot simple gagne environ 1 partie sur 4 sans passer par le marchand ni choisir son chemin.
+Équilibrage : `node tools/balance.js 500 chevalier` (ou `sorciere`, `saigneur`). Le bot simple gagne de 25 à 33 % de ses parties sans passer par le marchand ni boire de fiole.
