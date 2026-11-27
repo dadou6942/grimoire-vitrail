@@ -18,7 +18,7 @@ function boot(store) {
     },
   };
   vm.createContext(ctx);
-  for (const f of ['data.js', 'engine.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx);
+  for (const f of ['data.js', 'engine.js', 'meta.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx);
   window.G.UI = { toast() {} };
   return window.G;
 }

@@ -168,9 +168,12 @@
     if (plain.length > 62) el.classList.add('xlong');
     else if (plain.length > 44) el.classList.add('long');
     if (def.name.length > 15) el.classList.add('longname');
+    const ench = card.ench && G.ENCH[card.ench];
+    if (ench) el.classList.add('ench', 'ench-' + ench.kind);
     el.innerHTML =
       `<div class="c-art"><img alt="" src="${G.Art.cardArt(card.id)}"><div class="c-light"></div></div>` +
       (cost >= 0 ? `<div class="c-cost">${cost}</div>` : '') +
+      (ench ? `<div class="c-ench" title="${ench.desc}">${ench.name}</div>` : '') +
       `<div class="c-name">${def.name}${card.up ? '+' : ''}</div>` +
       `<div class="c-type">${TYPE_NAME[def.type]}</div>` +
       `<div class="c-text"><span>${cardText(card, combat)}</span></div>` +
@@ -185,8 +188,10 @@
     ov.innerHTML = '';
     ov.appendChild(cardEl(card, C && C.combat));
     const kws = Object.keys(KEYWORDS).filter((k) => (def.text + (def.textUp || '')).includes(k.split(' ')[0]));
+    const ench = card.ench && G.ENCH[card.ench];
     ov.insertAdjacentHTML(
       'beforeend',
+      (ench ? `<div class="kws ench-desc"><b>${ench.kind === 'bless' ? 'Bénie' : 'Maudite'} : ${ench.name}</b> — ${ench.desc}</div>` : '') +
       `<div class="quote">« ${def.quote || ''} »</div>` +
         (kws.length ? `<div class="kws">${kws.map((k) => `<b>${k}</b> : ${KEYWORDS[k]}`).join('<br>')}</div>` : '') +
         (extra || '') +
@@ -529,12 +534,13 @@
       (has ? `<button class="btn gold" id="b-continue">Reprendre l’ascension</button>` : '') +
       `<button class="btn" id="b-new">Nouvelle ascension</button>` +
       `</div>` +
-      `<button class="btn ghost sm" id="b-account">Compte et sauvegarde</button>` +
+      `<div class="title-row"><button class="btn sm" id="b-hub">Grimoire${anyPoints() ? ' <i class="dot"></i>' : ''}</button><button class="btn ghost sm" id="b-account">Compte</button></div>` +
       (G.Cloud && G.Cloud.enabled() ? `<div class="foot acc-line">${cloudLine()}</div>` : '') +
       `<div class="foot">${R.meta.wins ? `Victoires : ${R.meta.wins}` : 'La rosace attend ton retour.'}</div>` +
       `<div class="version">Version ${window.GRIMOIRE_VERSION || 'locale'}</div>`;
     if (has) $('#b-continue').onclick = () => continueRun();
     $('#b-account').onclick = () => openAccount();
+    $('#b-hub').onclick = () => openHub();
     let armed = false;
     $('#b-new').onclick = (e) => {
       if (has && !armed) {
@@ -579,7 +585,9 @@
         ? `<div class="facts"><span>${icon('heart')} ${h.hp} PV</span><span>Relique : ${G.RELICS[h.relic].name}</span>${wins ? `<span>Victoires : ${wins}</span>` : ''}</div>` +
           `<div class="palier"><button class="icon-btn" id="p-minus" ${selPalier <= 0 ? 'disabled' : ''} aria-label="Palier inférieur">−</button>` +
           `<div class="p-txt"><b>Palier ${selPalier}</b><span>${R.PALIERS[selPalier]}</span>${maxP === 0 ? '<span class="p-hint">Gagne une partie pour débloquer le palier 1.</span>' : selPalier > 0 ? '<span class="p-hint">Les paliers s’additionnent.</span>' : ''}</div>` +
-          `<button class="icon-btn" id="p-plus" ${selPalier >= maxP ? 'disabled' : ''} aria-label="Palier supérieur">+</button></div>`
+          `<button class="icon-btn" id="p-plus" ${selPalier >= maxP ? 'disabled' : ''} aria-label="Palier supérieur">+</button></div>` +
+          `<div class="hero-extra"><button class="btn sm" id="b-pacts">Pactes : ${selPacts.length ? selPacts.length + ' · +' + Math.round(G.Meta.pactXp(selPacts) * 100) + ' % exp.' : 'aucun'}</button>` +
+          `<button class="btn ghost sm" id="b-hero-skills">Niveau ${G.Meta.levelOf(G.Meta.hero(selHero).xp).level}${G.Meta.points(selHero) > 0 ? ' <i class="dot"></i>' : ''}</button></div>`
         : `<div class="facts"><span>${lockText(h)} pour l’éveiller.</span></div>`) +
       `</div>` +
       `<div class="actions"><button class="btn ghost" id="b-back">Retour</button><button class="btn gold" id="b-start" ${open ? '' : 'disabled'}>Commencer</button></div>`;
@@ -592,6 +600,8 @@
     });
     $$('.facts svg', el).forEach((s) => (s.style.cssText = 'width:16px;height:16px;fill:#c21f31;vertical-align:-2px'));
     if (open) {
+      $('#b-pacts').onclick = () => openPacts();
+      $('#b-hero-skills').onclick = () => openHub('skills', selHero);
       $('#p-minus').onclick = () => {
         selPalier = Math.max(0, selPalier - 1);
         renderHeroes();
@@ -604,7 +614,7 @@
     $('#b-back').onclick = () => go('title', renderTitle);
     $('#b-start').onclick = () => {
       if (!R.heroUnlocked(selHero)) return;
-      R.newRun(selHero, selPalier);
+      R.newRun(selHero, selPalier, selPacts.filter((id) => G.Meta.pactAvailable(id)));
       go('map', renderMap).then(() => UI.toast('Acte I · ' + G.ACT_POOLS[1].name));
     };
   }
@@ -615,7 +625,7 @@
     const run = R.run;
     const st = run.resume;
     const d = run.pending;
-    if (st && st.screen === 'combat' && st.snap) return go('combat', () => startCombat(st.snap.enemyId, st.type, st.mod, st));
+    if (st && st.screen === 'combat' && st.snap) return go('combat', () => startCombat(null, st.type, st.mod, st));
     if (st && st.screen === 'reward') {
       C.type = st.type;
       return go('reward', () => renderReward(st.rw));
@@ -632,7 +642,7 @@
     if (st && st.screen === 'treasure') return go('reward', () => renderTreasure(st.pool));
     // une porte franchie juste avant de quitter : on y retourne
     if (d && !st) {
-      if (d.type === 'combat' || d.type === 'elite' || d.type === 'boss') return go('combat', () => startCombat(d.enemy, d.type, d.mod));
+      if (d.type === 'combat' || d.type === 'elite' || d.type === 'boss') return go('combat', () => startCombat(doorSpec(d), d.type, d.mod));
       if (d.type === 'event') return go('event', () => renderEvent(R.nextEvent()));
       if (d.type === 'merchant') return go('shop', () => renderShop(true));
       if (d.type === 'altar') return go('altar', renderAltar);
@@ -649,19 +659,22 @@
       const e = G.ENEMIES[d.enemy];
       const mod = d.mod ? G.MODS[d.mod] : null;
       const reward = d.type === 'boss' ? 'Relique de gardien · carte rare · PV restaurés' : d.type === 'elite' ? 'Relique · beaucoup d’or · carte' : 'Or · carte · peut-être une fiole';
+      const others = (d.group || []).slice(1).map((id) => G.ENEMIES[id].name);
+      const groupTxt = !d.group ? '' : d.minion === 'escort' ? `Escorté par : ${others.join(', ')}. ` : `Une meute : ${d.group.map((id) => G.ENEMIES[id].name).join(', ')}. Chacun est plus faible, mais ils frappent ensemble. `;
       return {
-        kicker: d.type === 'boss' ? 'Gardien de l’acte' : d.type === 'elite' ? 'Élite' : 'Combat',
-        title: e.name,
+        kicker: d.type === 'boss' ? 'Gardien de l’acte' : d.type === 'elite' ? (d.group ? 'Élite escortée' : 'Élite') : d.group ? `Meute ×${d.group.length}` : 'Combat',
+        group: d.group ? d.group.length : 0,
+        title: d.group && d.minion !== 'escort' ? 'Meute' : e.name,
         art: G.Art.enemy(d.enemy),
         portrait: true,
-        desc: (mod ? `<b class="mod">${mod.name}</b> ${mod.desc} ` : '') + `${e.hp[0]} PV.`,
-        reward: mod ? `${reward} · <b>${mod.reward}</b>` : reward,
+        desc: (mod ? `<b class="mod">${mod.name}</b> ${mod.desc} ` : '') + (groupTxt || `${e.hp[0]} PV.`),
+        reward: (mod ? `${reward} · <b>${mod.reward}</b>` : reward) + (d.group ? ' · <b>butin plus riche</b>' : ''),
       };
     }
     const T = {
       event: ['Mystère', 'Une rencontre inattendue : un choix, un risque, une chance.', 'Imprévisible'],
       merchant: ['Le Marchand', `Cartes, reliques et fioles. Ta bourse : ${run.gold} or.`, 'Achats · effacer une carte'],
-      altar: ['L’Autel', 'Repose-toi ou grave une rune sur une carte.', `Soin de ${Math.round(run.maxHp * ((run.palier || 0) >= 4 ? 0.15 : 0.3))} PV ou amélioration`],
+      altar: ['L’Autel', 'Repose-toi ou grave une rune sur une carte.', R.altarHeal() > 0 ? `Soin de ${R.altarHeal()} PV, amélioration ou bénédiction` : 'Amélioration ou bénédiction (pas de soin)'],
       treasure: ['Le Trésor', 'Un reliquaire oublié, sans gardien.', 'Une relique au choix parmi deux'],
     }[d.type];
     return { kicker: NODE_NAME[d.type], title: T[0], art: G.Art.node(d.type), desc: T[1], reward: T[2] };
@@ -713,6 +726,7 @@
       b.innerHTML =
         `<div class="door-glass"><img alt="" src="${info.art}"><div class="c-light"></div></div>` +
         (d.mod ? `<div class="door-mod">${G.MODS[d.mod].name}</div>` : '') +
+        (info.group ? `<div class="door-count">×${info.group}</div>` : '') +
         `<div class="door-kicker">${info.kicker}</div><div class="door-title">${info.title}</div>`;
       b.onclick = () => (sel === i ? enterDoor(i) : select(i));
       wrap.appendChild(b);
@@ -728,7 +742,7 @@
     entering = true;
     setTimeout(() => (entering = false), 1500);
     const d = R.chooseDoor(i);
-    if (d.type === 'combat' || d.type === 'elite' || d.type === 'boss') go('combat', () => startCombat(d.enemy, d.type, d.mod));
+    if (d.type === 'combat' || d.type === 'elite' || d.type === 'boss') go('combat', () => startCombat(doorSpec(d), d.type, d.mod));
     else if (d.type === 'event') go('event', () => renderEvent(R.nextEvent()));
     else if (d.type === 'merchant') go('shop', () => renderShop(true));
     else if (d.type === 'altar') go('altar', renderAltar);
@@ -777,22 +791,50 @@
     R.saveResume({ screen: 'combat', type: C.type, mod: C.mod, phase, snap: c.snapshot() });
   }
 
-  function startCombat(enemyId, type, mod, resume) {
+  /** Liste d'ennemis d'une porte (meute, élite escortée) ou identifiant seul. */
+  function doorSpec(d) {
+    if (!d.group) return d.enemy;
+    return d.group.map((id, i) => (d.minion === 'escort' && i === 0 ? { id } : { id, minion: d.minion }));
+  }
+  UI.doorSpec = doorSpec;
+
+  const foeSel = (uid) => `#combat .foe[data-uid="${uid}"]`;
+  function foeHTML(e, i, n, mod) {
+    const portrait = G.Art.enemy(e.id);
+    return (
+      `<div class="foe${e.minion ? ' minion' : ''}${e.def.boss ? ' boss' : ''}" data-uid="${e.uid}">` +
+      `<div class="intent" data-tip="intent:"></div>` +
+      `<div class="window"><img class="portrait" alt="${e.name}" src="${portrait}" style="animation-delay:-${i * 1.3}s"><div class="w-flash" style="--mask:url(${portrait})"></div><div class="aim-ring"></div></div>` +
+      `<div class="e-name">${n > 1 ? e.name.replace(/^(L[ae] |L’)/, '') : e.name}${mod && i === 0 && n === 1 ? ` <span class="e-mod" data-tip="intent:" data-title="${G.MODS[mod].name}" data-text="${G.MODS[mod].desc}">${G.MODS[mod].name}</span>` : ''}</div>` +
+      `<div class="bar-wrap e-bar"><div class="block-badge"></div><div class="bar"><div class="lag"></div><div class="fill"></div><div class="preview"></div><div class="txt"></div></div></div>` +
+      `<div class="statuses e-st"></div>` +
+      `</div>`
+    );
+  }
+
+  function startCombat(spec, type, mod, resume) {
     C.type = type;
     C.mod = mod || null;
     C.busy = false;
     const el = $('#combat');
-    const portrait = G.Art.enemy(enemyId);
-    const def = G.ENEMIES[enemyId];
+    // les éléments de cartes du combat précédent ne doivent pas être réutilisés
+    handEls.clear();
+    selectedUid = null;
+    drag = null;
+    if (resume && resume.snap) {
+      C.combat = G.Combat.restore(resume.snap, onEvent);
+    } else {
+      C.combat = new G.Combat(spec, onEvent, mod);
+    }
+    const c = C.combat;
+    const n = c.enemies.length;
+    if (G.Meta) c.enemies.forEach((e) => G.Meta.see('e', e.id));
     el.innerHTML =
       topbar(whereText()) +
       `<div class="enemy-zone">` +
       `<div class="move-banner"></div>` +
-      `<div class="intent" data-tip="intent:"></div>` +
-      `<div class="window ${def.boss ? 'boss' : ''}" style="--mask:url(${portrait})"><img class="portrait" alt="" src="${portrait}"><div class="w-flash"></div></div>` +
-      `<div class="e-name">${def.name}${mod ? ` <span class="e-mod" data-tip="intent:" data-title="${G.MODS[mod].name}" data-text="${G.MODS[mod].desc}">${G.MODS[mod].name}</span>` : ''}</div>` +
-      `<div class="bar-wrap e-bar"><div class="block-badge"></div><div class="bar"><div class="lag"></div><div class="fill"></div><div class="preview"></div><div class="txt"></div></div></div>` +
-      `<div class="statuses e-st"></div>` +
+      (n > 1 && mod ? `<div class="group-mod"><span class="e-mod" data-tip="intent:" data-title="${G.MODS[mod].name}" data-text="${G.MODS[mod].desc}">${G.MODS[mod].name}</span></div>` : '') +
+      `<div class="foes n${n}">${c.enemies.map((e, i) => foeHTML(e, i, n, mod)).join('')}</div>` +
       `</div>` +
       `<div class="controls">` +
       `<div class="ink" aria-label="Encre"></div>` +
@@ -808,36 +850,46 @@
     $('.end-turn', el).onclick = () => endTurn();
     $('.b-draw', el).onclick = () => openPile('Pioche', C.combat.pile, true);
     $('.b-disc', el).onclick = () => openPile('Défausse', C.combat.discard);
-    // les éléments de cartes du combat précédent ne doivent pas être réutilisés
-    handEls.clear();
-    selectedUid = null;
-    drag = null;
+    // toucher un ennemi le prend pour cible
+    $$('.foe', el).forEach((f) => {
+      f.addEventListener('click', (ev) => {
+        if (ev.target.closest('[data-tip]') || C.combat.enemies.length < 2) return;
+        C.combat.setTarget(f.dataset.uid);
+        renderCombat();
+        if (selectedUid) {
+          const card = C.combat.hand.find((k) => k.uid === selectedUid);
+          if (card) showPlayPreview(card);
+        }
+      });
+    });
+    // ennemis déjà tombés (reprise d'un combat)
+    c.killed.forEach((e) => {
+      const f = $(foeSel(e.uid));
+      if (f) f.classList.add('dead');
+    });
     if (resume && resume.snap) {
-      // reprise : on reconstitue le combat tel qu'il était
-      C.combat = G.Combat.restore(resume.snap, onEvent);
-      if (resume.phase === 'ended') C.combat.enemyTurn();
-      if (resume.phase === 'ended' || resume.phase === 'enemy') {
-        if (!C.combat.over) C.combat.startTurn();
-      }
+      if (resume.phase === 'ended') c.enemyTurn();
+      if ((resume.phase === 'ended' || resume.phase === 'enemy') && !c.over) c.startTurn();
       renderCombat(true);
       setTimeout(layoutHand, 620);
       setTimeout(() => UI.toast('Combat repris là où tu l’avais laissé'), 700);
-      if (C.combat.over) setTimeout(handleOver, 800);
+      if (c.over) setTimeout(handleOver, 800);
       else saveCombat('player');
       return;
     }
-    C.combat = new G.Combat(enemyId, onEvent, mod);
-    C.combat.start();
+    c.start();
     renderCombat(true);
     saveCombat('player');
     setTimeout(layoutHand, 620);
-    if (def.boss) setTimeout(() => banner(def.name), 600);
-    setTimeout(() => tutorial('combat'), 900);
+    const boss = c.enemies.find((e) => e.def.boss);
+    if (boss) setTimeout(() => banner(boss.name), 600);
+    else if (n > 1) setTimeout(() => banner(c.enemies.some((e) => e.def.elite) ? 'Une élite et son escorte' : 'Une meute'), 500);
+    setTimeout(() => tutorial(n > 1 ? 'groups' : 'combat'), 900);
   }
 
   /** Aperçu de dégâts sur une barre : `amount` PV en surbrillance au bout de la jauge. */
   function barPreview(wrap, hp, max, block, amount) {
-    const pv = $('.preview', wrap);
+    const pv = wrap && $('.preview', wrap);
     if (!pv) return;
     const lost = Math.max(0, Math.min(hp, amount - block));
     if (lost <= 0) {
@@ -855,6 +907,7 @@
   }
 
   function barUpdate(wrap, hp, max, block) {
+    if (!wrap) return;
     const pct = Math.max(0, (hp / max) * 100) + '%';
     $('.fill', wrap).style.width = pct;
     $('.lag', wrap).style.width = pct;
@@ -874,33 +927,42 @@
       .join('');
   }
 
+  function intentHTML(info) {
+    const kinds = info.kinds;
+    let html = '';
+    if (kinds.includes('hidden')) html += icon('eye', 'i-curse') + '<span>?</span>';
+    if (kinds.includes('atk')) html += icon('sword', 'i-atk') + `<span>${info.dmg}${info.hits > 1 ? '×' + info.hits : ''}</span>`;
+    if (kinds.includes('def')) html += icon('shield', 'i-def');
+    if (kinds.includes('buff')) html += icon('up', 'i-buff');
+    if (kinds.includes('debuff')) html += icon('crack', 'i-debuff');
+    if (kinds.includes('curse')) html += icon('eye', 'i-curse');
+    return html + `<span class="nm">${info.name}</span>`;
+  }
+
   function renderCombat(fresh) {
     const c = C.combat;
     const el = $('#combat');
     R.run.hp = c.p.hp;
     refreshTopbar(el);
-    // intention
-    const info = c.intentInfo();
-    const it = $('.intent', el);
-    if (info && !c.over) {
-      const kinds = info.kinds;
-      let html = '';
-      if (kinds.includes('hidden')) html += icon('eye', 'i-curse') + '<span>?</span>';
-      if (kinds.includes('atk')) html += icon('sword', 'i-atk') + `<span>${info.dmg}${info.hits > 1 ? '×' + info.hits : ''}</span>`;
-      if (kinds.includes('def')) html += icon('shield', 'i-def');
-      if (kinds.includes('buff')) html += icon('up', 'i-buff');
-      if (kinds.includes('debuff')) html += icon('crack', 'i-debuff');
-      if (kinds.includes('curse')) html += icon('eye', 'i-curse');
-      html += `<span class="nm">${info.name}</span>`;
-      it.innerHTML = html;
-      it.className = 'intent' + (kinds.includes('atk') ? ' atk' : '');
-      it.style.visibility = '';
-      it.dataset.title = info.name;
-      it.dataset.text = kinds.includes('hidden') ? 'La brume cache ce que prépare l’ennemi.' : intentText(c.e.intent, info);
-    } else it.style.visibility = 'hidden';
-    barUpdate($('.e-bar', el), c.e.hp, c.e.maxHp, c.e.block);
-    barPreview($('.e-bar', el), c.e.hp, c.e.maxHp, c.e.block, 0);
-    $('.e-st', el).innerHTML = statusHTML(c.e.st);
+    const multi = c.enemies.length > 1;
+    const target = c.e;
+    for (const e of c.enemies) {
+      const f = $(foeSel(e.uid));
+      if (!f) continue;
+      f.classList.toggle('target', multi && e === target && e.hp > 0 && !c.over);
+      const it = $('.intent', f);
+      const info = c.intentInfo(e);
+      if (info && !c.over) {
+        it.innerHTML = intentHTML(info);
+        it.className = 'intent' + (info.kinds.includes('atk') ? ' atk' : '');
+        it.style.visibility = '';
+        it.dataset.title = info.name;
+        it.dataset.text = info.kinds.includes('hidden') ? 'La brume cache ce que prépare l’ennemi.' : intentText(e.intent, info);
+      } else it.style.visibility = 'hidden';
+      barUpdate($('.e-bar', f), e.hp, e.maxHp, e.block);
+      barPreview($('.e-bar', f), e.hp, e.maxHp, e.block, 0);
+      $('.e-st', f).innerHTML = statusHTML(e.st);
+    }
     barUpdate($('.p-bar', el), c.p.hp, c.p.maxHp, c.p.block);
     // dégâts que tu vas subir si tu finis ton tour maintenant
     barPreview($('.p-bar', el), c.p.hp, c.p.maxHp, 0, c.over ? 0 : c.incoming());
@@ -1026,10 +1088,35 @@
     if (Math.hypot(dx, dy) > 10) drag.moved = true;
     if (!drag.moved) return;
     const playable = C.combat.canPlay(card);
-    drag.ready = dy < -Math.min(100, window.innerHeight * 0.11) && playable;
+    // visée : la carte glissée au-dessus d'un ennemi le prend pour cible
+    const aim = playable ? foeAt(e.clientX, e.clientY) : null;
+    if (aim !== drag.aim) {
+      drag.aim = aim;
+      $$('#combat .foe').forEach((f) => f.classList.toggle('aim', f.dataset.uid === aim));
+      if (aim && C.combat.enemies.length > 1) {
+        C.combat.setTarget(aim);
+        showPlayPreview(card);
+      }
+    }
+    drag.ready = playable && (!!aim || dy < -Math.min(100, window.innerHeight * 0.11));
     el.classList.toggle('ready', drag.ready);
-    $('#combat .drop-hint').classList.toggle('show', playable);
+    const hint = $('#combat .drop-hint');
+    const aimed = aim && C.combat.enemies.length > 1 ? C.combat.enemies.find((x) => x.uid === aim) : null;
+    hint.textContent = aimed ? 'Relâche pour viser : ' + aimed.name : 'Relâche pour jouer';
+    hint.classList.toggle('show', playable);
     el.style.transform = `translateX(calc(-50% + ${dx + parseBaseX(el)}px)) translateY(${dy - 30}px) rotate(${dx * 0.04}deg) scale(1.12)`;
+  }
+  /** Ennemi vivant sous le point (x, y), avec une marge généreuse pour le doigt. */
+  function foeAt(x, y) {
+    const c = C.combat;
+    if (!c) return null;
+    for (const f of $$('#combat .foe')) {
+      const en = c.enemies.find((q) => q.uid === f.dataset.uid);
+      if (!en || en.hp <= 0) continue;
+      const r = $('.window', f).getBoundingClientRect();
+      if (x >= r.left - 14 && x <= r.right + 14 && y >= r.top - 30 && y <= r.bottom + 40) return f.dataset.uid;
+    }
+    return null;
   }
 
   function onDragEnd(e) {
@@ -1039,8 +1126,10 @@
     drag = null;
     d.el.classList.toggle('dragging', false);
     d.el.classList.toggle('ready', false);
+    $$('#combat .foe.aim').forEach((f) => f.classList.toggle('aim', false));
     const hint = $('#combat .drop-hint');
     if (hint) hint.classList.toggle('show', false);
+    if (d.aim) C.combat.setTarget(d.aim);
     if (d.long || (e && e.type === 'pointercancel')) {
       deselect();
       return;
@@ -1136,16 +1225,19 @@
     if (!c.canPlay(card)) return;
     const sim = c.simulate(card);
     const el = $('#combat');
-    const eLost = c.e.hp + c.e.block - (sim.eHp + sim.eBlock);
-    const eHpLost = c.e.hp - sim.eHp;
-    barPreview($('.e-bar', el), c.e.hp, c.e.maxHp, 0, eHpLost);
-    const eb = $('.e-bar', el);
-    eb.classList.toggle('previewing', eLost > 0);
-    if (sim.eHp <= 0) eb.classList.add('lethal');
+    // chaque ennemi : PV qu'il va perdre, et coup fatal
+    for (const after of sim.enemies) {
+      const e = c.enemies.find((x) => x.uid === after.uid);
+      const f = $(foeSel(after.uid));
+      if (!e || !f || e.hp <= 0) continue;
+      const eb = $('.e-bar', f);
+      barPreview(eb, e.hp, e.maxHp, 0, e.hp - after.hp);
+      eb.classList.toggle('previewing', e.hp + e.block > after.hp + after.block);
+      eb.classList.toggle('lethal', after.hp <= 0);
+    }
     // armure gagnée : la menace annoncée diminue
     const pb = $('.p-bar', el);
-    const incoming = c.e.intent && c.e.intent.dmg && !c.hidden ? c.calcDamage(c.e, c.p, c.e.intent.dmg, true) * (c.e.intent.hits || 1) : 0;
-    barPreview(pb, c.p.hp, c.p.maxHp, sim.pBlock, incoming);
+    barPreview(pb, c.p.hp, c.p.maxHp, sim.pBlock, c.hidden ? 0 : c.incomingRaw());
     if (sim.pBlock > c.p.block) {
       pb.classList.add('blk', 'gain');
       $('.block-badge', pb).textContent = sim.pBlock;
@@ -1154,9 +1246,10 @@
   function clearPlayPreview() {
     const el = $('#combat');
     if (!el || !C.combat) return;
-    const eb = $('.e-bar', el);
-    eb.classList.toggle('previewing', false);
-    eb.classList.toggle('lethal', false);
+    $$('.e-bar', el).forEach((eb) => {
+      eb.classList.toggle('previewing', false);
+      eb.classList.toggle('lethal', false);
+    });
     $('.p-bar', el).classList.toggle('gain', false);
     renderCombat();
   }
@@ -1170,7 +1263,7 @@
     const c = C.combat;
     C.busy = true;
     const def = G.CARDS[card.id];
-    const win = $('#combat .window').getBoundingClientRect();
+    const win = ($(foeSel(c.e.uid) + ' .window') || $('#combat .window')).getBoundingClientRect();
     const r = el.getBoundingClientRect();
     const tx = win.left + win.width / 2 - (r.left + r.width / 2);
     const ty = win.top + win.height * 0.55 - (r.top + r.height / 2);
@@ -1221,19 +1314,24 @@
     renderCombat();
     if (c.over) return handleOver();
     await wait(T(150));
-    const intent = c.e.intent;
-    const win = $('#combat .window');
-    if (intent && intent.dmg) {
-      win.classList.toggle('lunge', false);
-      void win.offsetWidth;
-      win.classList.add('lunge');
-      await wait(T(180));
+    // les ennemis qui attaquent prennent leur élan
+    let hits = 0;
+    for (const en of c.alive()) {
+      if (!en.intent || !en.intent.dmg) continue;
+      hits += en.intent.hits || 1;
+      const w = $(foeSel(en.uid) + ' .window');
+      if (w) {
+        w.classList.toggle('lunge', false);
+        void w.offsetWidth;
+        w.classList.add('lunge');
+      }
     }
+    if (hits) await wait(T(180));
     C.fxDelay = 0;
     c.enemyTurn();
     saveCombat('enemy');
     renderCombat();
-    await wait(T(380 + (intent && intent.hits ? intent.hits * 130 : 0)));
+    await wait(T(380 + hits * 130 + (c.enemies.length - 1) * 120));
     if (c.over) return handleOver();
     C.fxDelay = 0;
     c.startTurn();
@@ -1247,21 +1345,30 @@
     C.busy = true;
     renderCombat();
     if (c.won) {
-      const win = $('#combat .window');
-      const img = $('img.portrait', win);
-      const rect = win.getBoundingClientRect();
       await wait(T(200));
-      // seul moment où le vitrail se brise vraiment : la mort de l'ennemi
-      G.FX.shatter(img, { left: rect.left, top: rect.top, width: rect.width, height: rect.height }, { power: 1.2, count: 9 });
-      win.style.visibility = 'hidden';
+      // les vitraux encore debout se brisent (normalement déjà fait à chaque mort)
+      c.enemies.forEach((en) => shatterFoe(en.uid));
       await wait(T(1000));
       onCombatWon();
     } else {
       document.body.classList.add('shake');
       await wait(1400);
       document.body.classList.remove('shake');
-      endRun(false);
+      const killer = c.alive()[0];
+      endRun(false, killer ? killer.id : null);
     }
+  }
+
+  /** Le vitrail d'un ennemi tombé se brise : le seul vrai bris de verre du jeu. */
+  function shatterFoe(uid) {
+    const f = $(foeSel(uid));
+    if (!f || f.dataset.shattered) return;
+    f.dataset.shattered = '1';
+    const win = $('.window', f);
+    const img = $('img.portrait', win);
+    const rect = win.getBoundingClientRect();
+    if (rect.width) G.FX.shatter(img, { left: rect.left, top: rect.top, width: rect.width, height: rect.height }, { power: 1.1, count: C.combat.enemies.length > 1 ? 7 : 9 });
+    f.classList.add('dead');
   }
 
   // ---- réactions aux événements du moteur
@@ -1293,16 +1400,21 @@
   function onEvent(ev) {
     const d = (C.fxDelay = (C.fxDelay || 0) + (ev.t === 'hit' ? 130 : 40));
     const delay = d - 130;
-    const pe = center('#combat .window');
+    // position de l'ennemi concerné (ou de la cible)
+    const euid = ev.uid || (C.combat && C.combat.e.uid);
+    const pe = center(foeSel(euid) + ' .window');
     const pp = center('#combat .p-bar');
     switch (ev.t) {
+      case 'enemyDeath':
+        setTimeout(() => shatterFoe(ev.uid), Math.max(0, delay) + 120);
+        break;
       case 'hit': {
         const at = ev.who === 'e' ? { x: pe.x, y: pe.y - 10 } : pp;
         if (ev.dmg > 0) floatText(ev.dmg, at.x, at.y, (ev.dmg >= 15 ? 'big ' : '') + (ev.kind === 'burn' ? 'burn' : ''), delay);
         else if (ev.blocked > 0) floatText('Bloqué', at.x, at.y, 'blocked', delay);
         setTimeout(() => {
           if (ev.who === 'e') {
-            const w = $('#combat .window');
+            const w = $(foeSel(euid) + ' .window');
             if (w) {
               w.classList.remove('hit');
               void w.offsetWidth;
@@ -1391,17 +1503,20 @@
     const c = C.combat;
     c.finish();
     const run = R.run;
-    run.stats.kills++;
-    for (const id of run.relics) if (G.RELICS[id].combatEnd) G.RELICS[id].combatEnd(run);
+    run.stats.kills += c.enemies.length;
+    for (const fx of R.effects()) if (fx.combatEnd) fx.combatEnd(run);
     const type = C.type;
+    // statistiques et succès du combat
+    if (G.Meta) G.Meta.recordCombat(c, type);
+    const group = c.enemies.length > 1;
     const mod = C.mod ? G.MODS[C.mod] : null;
     const reward = { gold: 0, relic: null, bossRelics: null, cards: null, potion: null, stolen: c.stolen };
     if (c.stolen) run.gold += c.stolen;
     const gm = mod && mod.gold ? mod.gold : 1;
-    if (type === 'combat') reward.gold = R.gainGold(Math.round((14 + Math.floor(Math.random() * 8)) * gm));
+    if (type === 'combat') reward.gold = R.gainGold(Math.round((14 + Math.floor(Math.random() * 8)) * gm * (group ? 1.3 : 1)));
     if (type === 'elite') {
       run.stats.elites++;
-      reward.gold = R.gainGold(30 + Math.floor(Math.random() * 8));
+      reward.gold = R.gainGold(30 + Math.floor(Math.random() * 8) + (group ? 15 : 0));
       reward.relic = R.gainRandomRelicSilent();
     }
     if (type === 'boss') {
@@ -1420,11 +1535,17 @@
       const id = G.pick(Object.keys(G.POTIONS));
       if (R.addPotion(id)) reward.potion = id;
     }
-    const n = R.has('reliquaire') ? 4 : 3;
-    const boost = (type === 'elite' ? 0.12 : 0) + (mod && mod.rare ? mod.rare : 0);
+    const n = R.rewardCount();
+    const boost = (type === 'elite' ? 0.12 : 0) + (mod && mod.rare ? mod.rare : 0) + (group ? 0.05 : 0);
     reward.cards = type === 'boss' ? R.cardChoices(n, 0, 'r') : R.cardChoices(n, boost);
     // parfois une carte proposée est déjà améliorée
     reward.upgraded = reward.cards.map(() => Math.random() < (type === 'elite' ? 0.35 : 0.15));
+    if (G.Meta) {
+      G.Meta.seeAll('c', reward.cards);
+      if (reward.bossRelics) G.Meta.seeAll('r', reward.bossRelics);
+      G.Meta.flush();
+      G.Meta.check({ k: 'tick' });
+    }
     R.save();
     R.saveResume({ screen: 'reward', rw: reward, type });
     go('reward', () => renderReward(reward));
@@ -1544,15 +1665,16 @@
     const run = R.run;
     R.saveResume({ screen: 'altar' });
     const el = $('#altar');
-    const noHeal = R.has('ostensoir');
-    const heal = Math.round(run.maxHp * ((run.palier || 0) >= 4 ? 0.15 : 0.3)) + (R.has('sceau') ? 15 : 0);
+    const noHeal = R.altarHeal() <= 0;
+    const heal = R.altarHeal();
     el.innerHTML =
       topbar(whereText()) +
       `<div class="panel-head"><h2>L’Autel</h2><p>Les cierges brûlent sans fondre. Une seule grâce t’est accordée.</p></div>` +
       `<div class="event-art lit"><img alt="" src="${G.Art.event({ id: 'altar', art: 'candle', pal: 'ambre' })}"><div class="c-light" style="position:absolute;inset:0;background:radial-gradient(circle at var(--gx,50%) var(--gy,30%),rgba(255,240,200,.5),transparent 55%);mix-blend-mode:overlay"></div></div>` +
       `<div class="altar-opts">` +
-      `<button class="choice" id="b-rest" ${noHeal ? 'disabled' : ''}><span class="t">Se recueillir</span><span class="d">${noHeal ? 'L’Ostensoir refuse tout repos.' : `Soigne ${heal} PV.`}</span></button>` +
+      `<button class="choice" id="b-rest" ${noHeal ? 'disabled' : ''}><span class="t">Se recueillir</span><span class="d">${noHeal ? 'Ici, nul repos ne t’est accordé.' : `Soigne ${heal} PV.`}</span></button>` +
       `<button class="choice" id="b-forge"><span class="t">Graver une rune</span><span class="d">Améliore une carte de ton grimoire.</span></button>` +
+      `<button class="choice" id="b-bless"><span class="t">Bénir une carte</span><span class="d">Choisis une bénédiction : Économe, Vive, Tenace, Ardente ou Sainte.</span></button>` +
       `</div>`;
     bindTopbar(el);
     $('#b-rest').onclick = () => {
@@ -1562,6 +1684,10 @@
     };
     $('#b-forge').onclick = async () => {
       const done = await R.chooseUpgrade(true);
+      if (done) completeNode();
+    };
+    $('#b-bless').onclick = async () => {
+      const done = await UI.pickEnchant('bless', true);
       if (done) completeNode();
     };
   }
@@ -1583,10 +1709,19 @@
     });
     const relics = G.shuffle(R.relicPool(['c', 'u', 'r'])).slice(0, 2).map((id) => ({ id, price: price({ c: 140, u: 190, r: 250 }[G.RELICS[id].rarity]), sold: false }));
     const potions = G.shuffle(Object.keys(G.POTIONS)).slice(0, 3).map((id) => ({ id, price: price(id === 'larme' ? 60 : 45), sold: false }));
-    return { cards, relics, potions, remove: Math.round(R.run.removeCost * disc), removed: false };
+    return { cards, relics, potions, remove: Math.round(R.run.removeCost * disc), removed: false, bless: Math.round(90 * disc), blessed: false };
   }
   function renderShop(fresh) {
-    if (fresh || !stock) stock = makeStock();
+    if (fresh || !stock) {
+      stock = makeStock();
+      if (G.Meta) {
+        G.Meta.seeAll('c', stock.cards.map((x) => x.id));
+        G.Meta.seeAll('r', stock.relics.map((x) => x.id));
+        G.Meta.seeAll('p', stock.potions.map((x) => x.id));
+        G.Meta.flush();
+      }
+    }
+    if (G.Meta) G.Meta.check({ k: 'tick' });
     // chaque passage (et chaque achat, qui redessine l'écran) mémorise l'étal
     R.saveResume({ screen: 'shop', stock });
     const run = R.run;
@@ -1603,7 +1738,8 @@
       `<div class="shop-sec">Fioles</div><div class="shop-relics">${stock.potions
         .map((x, i) => `<button class="shop-relic shop-pot" data-p="${i}" style="${x.sold ? 'visibility:hidden' : ''}"><img alt="" src="${G.Art.potion(x.id)}"><div class="t">${G.POTIONS[x.id].name}</div><div class="d">${G.POTIONS[x.id].desc}</div>${pr(x.price)}</button>`)
         .join('')}</div>` +
-      `<div class="shop-sec">Service</div><div class="choice-list"><button class="choice" id="b-remove" ${stock.removed || run.gold < stock.remove ? 'disabled' : ''}><span class="t">Effacer une page — ${stock.remove} or</span><span class="d">${stock.removed ? 'Déjà fait aujourd’hui.' : 'Retire une carte de ton grimoire.'}</span></button></div>` +
+      `<div class="shop-sec">Service</div><div class="choice-list"><button class="choice" id="b-remove" ${stock.removed || run.gold < stock.remove ? 'disabled' : ''}><span class="t">Effacer une page — ${stock.remove} or</span><span class="d">${stock.removed ? 'Déjà fait aujourd’hui.' : 'Retire une carte de ton grimoire.'}</span></button>` +
+      `<button class="choice" id="b-shop-bless" ${stock.blessed || run.gold < (stock.bless || 90) ? 'disabled' : ''}><span class="t">Bénir une carte — ${stock.bless || 90} or</span><span class="d">${stock.blessed ? 'Déjà fait aujourd’hui.' : 'Une bénédiction au choix sur une carte de ton grimoire.'}</span></button></div>` +
       `</div>` +
       `<div class="actions"><button class="btn gold" id="b-leave">Partir</button></div>`;
     bindTopbar(el);
@@ -1685,6 +1821,16 @@
         run.gold -= stock.remove;
         run.removeCost += 25;
         stock.removed = true;
+        renderShop(false);
+      }
+    };
+    $('#b-shop-bless').onclick = async () => {
+      const price = stock.bless || 90;
+      if (stock.blessed || run.gold < price) return;
+      const done = await UI.pickEnchant('bless', true);
+      if (done) {
+        run.gold -= price;
+        stock.blessed = true;
         renderShop(false);
       }
     };
@@ -1804,6 +1950,10 @@
 
   /** Choisir une carte parmi des propositions (événements). */
   UI.cardReward = function (ids, title) {
+    if (G.Meta) {
+      G.Meta.seeAll('c', ids);
+      G.Meta.flush();
+    }
     return new Promise((resolve) => {
       const ov = $('#pick');
       ov.innerHTML =
@@ -1829,27 +1979,406 @@
   };
   R.chooseCard = (n) => UI.cardReward(R.cardChoices(n, 0.08), 'Choisis une carte');
 
+  /**
+   * Transformer une carte : on choisit la carte, puis une transformation parmi celles proposées.
+   * kind : 'bless' (bénédiction) ou 'curse' (malédiction). Renvoie un message, ou null si annulé.
+   */
+  UI.pickEnchant = function (kind, cancelable) {
+    return new Promise((resolve) => {
+      const ov = $('#pick');
+      const list = R.run.deck.filter((c) => G.enchOptions(c, kind).length);
+      const bless = kind === 'bless';
+      ov.innerHTML =
+        `<div class="inner"><div class="panel-head"><h2>${bless ? 'Bénir une carte' : 'Maudire une carte'}</h2>` +
+        `<p>${list.length ? (bless ? 'Touche la carte à bénir.' : 'Une carte maudite devient plus puissante, mais elle a un prix.') : 'Aucune carte ne peut être transformée.'}</p></div>` +
+        `<div class="scroll"><div class="deck-grid"></div><div class="ench-opts"></div></div>` +
+        `<div class="actions">${cancelable || !list.length ? `<button class="btn ghost" id="b-ench-cancel">${list.length ? 'Annuler' : 'Continuer'}</button>` : ''}</div></div>`;
+      const grid = $('.deck-grid', ov);
+      const opts = $('.ench-opts', ov);
+      let sel = null;
+      // propositions fixées pour chaque carte (pas de « relance » en changeant d'avis)
+      const offers = {};
+      const draw = () => {
+        grid.innerHTML = '';
+        list.forEach((card) => {
+          const ce = cardEl(card);
+          if (sel === card) ce.classList.add('chosen');
+          ce.onclick = () => {
+            sel = card;
+            draw();
+            const all = G.shuffle(G.enchOptions(card, kind));
+            offers[card.uid] = offers[card.uid] || all.slice(0, bless ? 3 : 2);
+            opts.innerHTML =
+              `<div class="shop-sec">${G.CARDS[card.id].name} : choisis sa transformation</div>` +
+              `<div class="choice-list">${offers[card.uid]
+                .map((k) => `<button class="choice" data-e="${k}"><span class="t">${G.ENCH[k].name}</span><span class="d">${G.ENCH[k].desc}</span></button>`)
+                .join('')}</div>`;
+            $$('.choice', opts).forEach((b) => {
+              b.onclick = () => {
+                R.enchant(card.uid, b.dataset.e);
+                ov.classList.toggle('show', false);
+                const msg = `${G.CARDS[card.id].name} est désormais ${bless ? 'bénie' : 'maudite'} : ${G.ENCH[b.dataset.e].name}.`;
+                UI.toast(msg);
+                resolve(msg);
+              };
+            });
+            opts.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          };
+          grid.appendChild(ce);
+        });
+      };
+      draw();
+      ov.classList.add('show');
+      const cancel = $('#b-ench-cancel');
+      if (cancel) {
+        cancel.onclick = () => {
+          ov.classList.toggle('show', false);
+          resolve(list.length ? null : 'Rien ne se passe.');
+        };
+      }
+    });
+  };
+  R.chooseEnchant = (kind, cancelable) => UI.pickEnchant(kind, cancelable).then((m) => m || 'Tu renonces.');
+
+  // ================================================================== le Grimoire : compétences, collection, succès, statistiques
+  const HUB_TABS = [
+    ['skills', 'Compétences'],
+    ['collection', 'Collection'],
+    ['ach', 'Succès'],
+    ['stats', 'Statistiques'],
+  ];
+  let hubTab = 'skills';
+  let hubHero = 'chevalier';
+  let colTab = 'cards';
+
+  function openHub(tab, hero) {
+    if (tab) hubTab = tab;
+    if (hero) hubHero = hero;
+    if (!R.heroUnlocked(hubHero)) hubHero = 'chevalier';
+    const ov = $('#hub');
+    ov.innerHTML =
+      `<div class="inner"><div class="panel-head hub-head"><h2>Grimoire</h2></div>` +
+      `<div class="hub-tabs" role="tablist">${HUB_TABS.map(([k, n]) => `<button role="tab" class="${k === hubTab ? 'on' : ''}" data-t="${k}">${n}${k === 'skills' && anyPoints() ? '<i class="dot"></i>' : ''}</button>`).join('')}</div>` +
+      `<div class="scroll hub-body"></div>` +
+      `<div class="actions"><button class="btn gold" id="hub-close">Fermer</button></div></div>`;
+    ov.classList.add('show');
+    $$('.hub-tabs button', ov).forEach((b) => {
+      b.onclick = () => openHub(b.dataset.t);
+    });
+    $('#hub-close').onclick = () => {
+      ov.classList.toggle('show', false);
+      if (current === 'title') renderTitle();
+      if (current === 'heroes') renderHeroes();
+    };
+    const body = $('.hub-body', ov);
+    if (hubTab === 'skills') hubSkills(body);
+    else if (hubTab === 'collection') hubCollection(body);
+    else if (hubTab === 'ach') hubAch(body);
+    else hubStats(body);
+  }
+  UI.openHub = openHub;
+  const anyPoints = () => G.Meta && Object.keys(G.HEROES).some((h) => R.heroUnlocked(h) && G.Meta.points(h) > 0);
+
+  // ---- compétences
+  function hubSkills(body) {
+    const M = G.Meta;
+    const h = hubHero;
+    const st = M.hero(h);
+    const lv = M.levelOf(st.xp);
+    const pts = M.points(h);
+    const heroes = Object.keys(G.HEROES).filter(R.heroUnlocked);
+    body.innerHTML =
+      `<div class="hub-heroes">${heroes.map((x) => `<button class="${x === h ? 'on' : ''}" data-h="${x}">${G.HEROES[x].name.replace(/^L[ea] /, '')}${M.points(x) > 0 ? ' <i class="dot"></i>' : ''}</button>`).join('')}</div>` +
+      `<div class="lvl"><div class="lvl-top"><b>Niveau ${lv.level}</b><span>${lv.next ? `${lv.into} / ${lv.next} expérience` : 'Niveau maximum'}</span></div>` +
+      `<div class="xp-bar"><div class="xp-fill" style="width:${lv.next ? Math.round((lv.into / lv.next) * 100) : 100}%"></div></div>` +
+      `<div class="lvl-pts">${pts > 0 ? `<b>${pts} point${pts > 1 ? 's' : ''} à dépenser</b> : touche une compétence dorée.` : 'Gagne de l’expérience en jouant (étages, ennemis, gardiens, pactes) pour obtenir des points.'}</div></div>` +
+      `<div class="tree">${G.TREES[h]
+        .map(
+          (br) =>
+            `<div class="branch"><div class="br-name">${br.name}</div>${br.nodes
+              .map((n, i) => {
+                const have = st.alloc.includes(n.id);
+                const can = M.canLearn(h, n.id);
+                return `${i ? '<div class="br-link ' + (have ? 'on' : '') + '"></div>' : ''}<button class="node ${have ? 'have' : can ? 'can' : ''}" data-n="${n.id}"><span class="n-name">${n.name}</span></button>`;
+              })
+              .join('')}</div>`
+        )
+        .join('')}</div>` +
+      `<div class="node-detail" id="node-detail"><p class="foot">Touche une compétence pour la lire.</p></div>` +
+      (st.alloc.length ? `<div class="actions"><button class="btn ghost sm" id="tree-reset">Réinitialiser (gratuit)</button></div>` : '');
+    $$('.hub-heroes button', body).forEach((b) => {
+      b.onclick = () => {
+        hubHero = b.dataset.h;
+        openHub('skills');
+      };
+    });
+    $$('.node', body).forEach((b) => {
+      b.onclick = () => {
+        const n = G.SKILL_NODES[b.dataset.n];
+        const have = st.alloc.includes(n.id);
+        const can = M.canLearn(h, n.id);
+        $('#node-detail', body).innerHTML =
+          `<div class="nd-name">${n.name}</div><div class="nd-desc">${n.desc}</div>` +
+          (have ? '<div class="nd-state">Apprise</div>' : can ? `<button class="btn gold sm" id="learn">Apprendre (1 point)</button>` : `<div class="nd-state">${pts > 0 ? 'Apprends d’abord la compétence précédente de la branche.' : 'Il te faut un point de compétence.'}</div>`);
+        const lb = $('#learn', body);
+        if (lb) {
+          lb.onclick = () => {
+            if (M.learn(h, n.id)) {
+              UI.toast(n.name + ' apprise');
+              openHub('skills');
+            }
+          };
+        }
+      };
+    });
+    const rs = $('#tree-reset', body);
+    if (rs) {
+      let armed = false;
+      rs.onclick = (e) => {
+        if (!armed) {
+          armed = true;
+          e.currentTarget.textContent = 'Toucher encore : récupérer tous les points';
+          return;
+        }
+        M.resetTree(h);
+        openHub('skills');
+      };
+    }
+  }
+
+  // ---- collection
+  function lockHint(lock) {
+    const a = G.ACH.find((x) => x.id === lock);
+    return a ? `Succès « ${a.name} »` : '';
+  }
+  function hubCollection(body) {
+    const col = G.Meta.collection();
+    const tabs = [
+      ['cards', 'Cartes', col.cards.length, col.cards.filter((id) => col.seen.c[id]).length],
+      ['relics', 'Reliques', col.relics.length, col.relics.filter((id) => col.seen.r[id]).length],
+      ['enemies', 'Ennemis', col.enemies.length, col.enemies.filter((id) => col.seen.e[id]).length],
+      ['pots', 'Fioles', col.pots.length, col.pots.filter((id) => col.seen.p[id]).length],
+    ];
+    body.innerHTML =
+      `<div class="col-pct"><b>${col.pct} %</b> de la collection découverte (${col.found} / ${col.total})</div>` +
+      `<div class="hub-heroes">${tabs.map(([k, n, t, f]) => `<button class="${k === colTab ? 'on' : ''}" data-c="${k}">${n} <small>${f}/${t}</small></button>`).join('')}</div>` +
+      `<div class="col-body"></div>`;
+    $$('.hub-heroes button', body).forEach((b) => {
+      b.onclick = () => {
+        colTab = b.dataset.c;
+        openHub('collection');
+      };
+    });
+    const cb = $('.col-body', body);
+    const unknown = (label, hint) => `<div class="unknown"><div class="u-q">?</div><div class="u-l">${label}</div>${hint ? `<div class="u-h">${hint}</div>` : ''}</div>`;
+    if (colTab === 'cards') {
+      let html = '';
+      for (const h of Object.keys(G.HEROES)) {
+        const ids = col.cards.filter((id) => G.CARDS[id].hero === h);
+        html += `<div class="shop-sec">${G.HEROES[h].name}</div><div class="deck-grid col-grid" data-h="${h}"></div>`;
+        void ids;
+      }
+      cb.innerHTML = html;
+      for (const h of Object.keys(G.HEROES)) {
+        const grid = $(`.col-grid[data-h="${h}"]`, cb);
+        col.cards
+          .filter((id) => G.CARDS[id].hero === h)
+          .forEach((id) => {
+            if (col.seen.c[id]) {
+              const card = G.newCard(id);
+              const ce = cardEl(card);
+              ce.onclick = () => openCardView(card);
+              grid.appendChild(ce);
+            } else {
+              grid.insertAdjacentHTML('beforeend', `<div class="card unknown-card">${unknown('Carte inconnue', G.CARDS[id].lock && G.Meta.locked(G.CARDS[id].lock) ? lockHint(G.CARDS[id].lock) : '')}</div>`);
+            }
+          });
+      }
+    } else if (colTab === 'relics') {
+      cb.innerHTML = `<div class="col-list">${col.relics
+        .map((id) => {
+          const r = G.RELICS[id];
+          if (!col.seen.r[id]) return `<div class="col-item">${unknown('Relique inconnue', r.lock && G.Meta.locked(r.lock) ? lockHint(r.lock) : '')}</div>`;
+          return `<div class="col-item"><img alt="" src="${G.Art.relic(id)}"><div><div class="t">${r.name}</div><div class="d">${r.desc}</div></div></div>`;
+        })
+        .join('')}</div>`;
+    } else if (colTab === 'enemies') {
+      const s = G.Meta.stats();
+      cb.innerHTML = `<div class="col-foes">${col.enemies
+        .map((id) => {
+          const e = G.ENEMIES[id];
+          if (!col.seen.e[id]) return `<div class="col-foe">${unknown('Ennemi inconnu', `Acte ${ROMAN[e.act]}`)}</div>`;
+          const tag = e.boss ? 'Gardien' : e.elite ? 'Élite' : 'Acte ' + ROMAN[e.act];
+          return `<div class="col-foe"><img alt="" src="${G.Art.enemy(id)}"><div class="t">${e.name}</div><div class="d">${tag} · vaincu ${s.enemies[id] || 0} fois</div></div>`;
+        })
+        .join('')}</div>`;
+    } else {
+      cb.innerHTML = `<div class="col-list">${col.pots
+        .map((id) => {
+          const p = G.POTIONS[id];
+          if (!col.seen.p[id]) return `<div class="col-item">${unknown('Fiole inconnue')}</div>`;
+          return `<div class="col-item"><img alt="" src="${G.Art.potion(id)}"><div><div class="t">${p.name}</div><div class="d">${p.desc}</div></div></div>`;
+        })
+        .join('')}</div>`;
+    }
+  }
+
+  // ---- succès
+  function hubAch(body) {
+    const got = R.meta.ach || {};
+    const n = G.ACH.filter((a) => got[a.id]).length;
+    body.innerHTML =
+      `<div class="col-pct"><b>${n} / ${G.ACH.length}</b> succès obtenus</div>` +
+      `<div class="ach-list">${G.ACH.map((a) => {
+        const ok = !!got[a.id];
+        const date = ok ? new Date(got[a.id]).toLocaleDateString('fr-FR') : '';
+        return (
+          `<div class="ach ${ok ? 'ok' : ''}"><div class="ach-ico">${ok ? '✦' : '✧'}</div><div class="ach-txt"><div class="t">${a.name}</div><div class="d">${a.desc}</div>` +
+          (a.unlock ? `<div class="u">${G.Meta.unlockText(a.unlock)}</div>` : '') +
+          `</div>${ok ? `<div class="ach-date">${date}</div>` : ''}</div>`
+        );
+      }).join('')}</div>`;
+  }
+
+  // ---- statistiques
+  function hubStats(body) {
+    const s = G.Meta.stats();
+    const rate = s.runs ? Math.round((s.wins / s.runs) * 100) : 0;
+    const top = (obj, n) => Object.keys(obj).sort((a, b) => obj[b] - obj[a]).slice(0, n);
+    const tile = (v, l) => `<div class="tile"><b>${v}</b><small>${l}</small></div>`;
+    const hours = Math.floor(s.time / 3600);
+    const mins = Math.floor((s.time % 3600) / 60);
+    const heroRows = Object.keys(G.HEROES)
+      .map((h) => {
+        const x = s.heroes[h] || { runs: 0, wins: 0, bestAct: 0 };
+        const lv = G.Meta.levelOf(G.Meta.hero(h).xp).level;
+        return `<tr><th>${G.HEROES[h].name.replace(/^L[ea] /, '')}</th><td>${lv}</td><td>${x.runs}</td><td>${x.wins}</td><td>${x.bestAct === 4 ? 'Victoire' : x.bestAct ? 'Acte ' + ROMAN[x.bestAct] : '—'}</td></tr>`;
+      })
+      .join('');
+    const list = (ids, obj, name) => (ids.length ? `<ol class="rank">${ids.map((id) => `<li><span>${name(id)}</span><b>${obj[id]}</b></li>`).join('')}</ol>` : '<p class="foot">Pas encore de données.</p>');
+    const hist = s.history.length
+      ? s.history
+          .map((r) => {
+            const d = new Date(r.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+            const end = r.won ? '<b class="win">Victoire</b>' : `Acte ${ROMAN[r.act]}${r.killer && G.ENEMIES[r.killer] ? ', ' + G.ENEMIES[r.killer].name : ''}`;
+            return `<div class="hist ${r.won ? 'won' : ''}"><div class="h-top"><span>${G.HEROES[r.hero] ? G.HEROES[r.hero].name.replace(/^L[ea] /, '') : r.hero} · palier ${r.palier}</span><span>${d}</span></div><div class="h-mid">${end} · étage ${r.floor} · +${r.xp} exp.</div>${r.pacts && r.pacts.length ? `<div class="h-pacts">${r.pacts.map((p) => (G.PACTS[p] ? G.PACTS[p].name : p)).join(', ')}</div>` : ''}</div>`;
+          })
+          .join('')
+      : '<p class="foot">Aucune partie terminée pour l’instant.</p>';
+    body.innerHTML =
+      `<div class="shop-sec">Générales</div><div class="tiles">` +
+      tile(s.runs, 'Parties') + tile(s.wins, 'Victoires') + tile(rate + ' %', 'Réussite') + tile(hours ? `${hours} h ${mins}` : `${mins} min`, 'Temps de jeu') +
+      tile(s.bestStreak, 'Meilleure série') + tile(s.bestPalier >= 0 ? s.bestPalier : '—', 'Plus haut palier gagné') + tile(s.kills, 'Ennemis vaincus') + tile(s.guardians, 'Gardiens vaincus') +
+      `</div>` +
+      `<div class="shop-sec">Par héros</div><table class="hero-tab"><thead><tr><th></th><th>Niv.</th><th>Parties</th><th>Victoires</th><th>Record</th></tr></thead><tbody>${heroRows}</tbody></table>` +
+      `<div class="shop-sec">Cartes les plus jouées</div>${list(top(s.cards, 5), s.cards, (id) => (G.CARDS[id] ? G.CARDS[id].name : id))}` +
+      `<div class="shop-sec">Ennemis les plus vaincus</div>${list(top(s.enemies, 5), s.enemies, (id) => (G.ENEMIES[id] ? G.ENEMIES[id].name : id))}` +
+      `<div class="shop-sec">Les plus meurtriers</div>${list(top(s.killers, 3), s.killers, (id) => (G.ENEMIES[id] ? G.ENEMIES[id].name : id))}` +
+      `<div class="shop-sec">Dernières parties</div><div class="hist-list">${hist}</div>`;
+  }
+
+  // ---- succès obtenus : annonce, l'un après l'autre
+  const achQueue = [];
+  let achShowing = false;
+  UI.onAchievements = function (list) {
+    achQueue.push(...list);
+    if (!achShowing) nextAch();
+  };
+  function nextAch() {
+    const a = achQueue.shift();
+    if (!a) {
+      achShowing = false;
+      return;
+    }
+    achShowing = true;
+    const el = $('#ach-pop');
+    el.innerHTML = `<div class="ap-k">Succès</div><div class="ap-t">${a.name}</div>${a.unlock ? `<div class="ap-u">${G.Meta.unlockText(a.unlock)}</div>` : `<div class="ap-u">${a.desc}</div>`}`;
+    el.classList.toggle('show', false);
+    void el.offsetWidth;
+    el.classList.add('show');
+    G.FX.burst(window.innerWidth / 2, 70, '245,220,150', 24);
+    setTimeout(() => {
+      el.classList.toggle('show', false);
+      setTimeout(nextAch, 400);
+    }, 3200);
+  }
+
+  // ---- pactes : choisis sur l'écran des héros
+  let selPacts = [];
+  function openPacts() {
+    const ov = $('#pick');
+    const avail = Object.keys(G.PACTS);
+    const draw = () => {
+      const bonus = Math.round(G.Meta.pactXp(selPacts) * 100);
+      ov.innerHTML =
+        `<div class="inner"><div class="panel-head"><h2>Pactes</h2><p>Jusqu’à trois pactes : chacun rend l’ascension plus dure, mais rapporte plus d’expérience.</p></div>` +
+        `<div class="scroll"><div class="choice-list">${avail
+          .map((id) => {
+            const p = G.PACTS[id];
+            const open = G.Meta.pactAvailable(id);
+            const on = selPacts.includes(id);
+            return `<button class="choice pact ${on ? 'on' : ''}" data-p="${id}" ${open ? '' : 'disabled'}><span class="t">${open ? p.name : 'Pacte scellé'}<em>+${Math.round(p.xp * 100)} % exp.</em></span><span class="d">${open ? p.desc : 'Se débloque par le ' + lockHint(p.lock).toLowerCase() + '.'}</span></button>`;
+          })
+          .join('')}</div></div>` +
+        `<div class="actions"><div class="pact-sum">${selPacts.length}/3 · expérience <b>+${bonus} %</b></div><button class="btn gold" id="pact-ok">Valider</button></div></div>`;
+      $$('.pact', ov).forEach((b) => {
+        b.onclick = () => {
+          const id = b.dataset.p;
+          if (selPacts.includes(id)) selPacts = selPacts.filter((x) => x !== id);
+          else if (selPacts.length < 3) selPacts.push(id);
+          else UI.toast('Trois pactes au plus.');
+          draw();
+        };
+      });
+      $('#pact-ok').onclick = () => {
+        ov.classList.toggle('show', false);
+        renderHeroes();
+      };
+    };
+    draw();
+    ov.classList.add('show');
+  }
+
+  // ---- temps de jeu : compté pendant la partie, écran visible
+  setInterval(() => {
+    if (!document.hidden && R.run && UI.inGame()) R.run.stats.time = (R.run.stats.time || 0) + 5;
+  }, 5000);
+
   // ------------------------------------------------------------------ fin de partie
-  function endRun(won) {
+  function endRun(won, killer) {
     const run = R.run;
     const s = run.stats;
     if (won) R.meta.wins++;
     R.meta.best = Math.max(R.meta.best || 0, run.act);
     const newPalier = won ? R.recordWin() : null;
     R.saveMeta();
+    // expérience, niveaux, statistiques et succès
+    const xp = G.Meta ? G.Meta.recordRun(run, won, killer) : null;
     R.clear();
     const unlocks = run.unlocks || [];
     const el = $('#end');
+    const lv = xp && G.Meta.levelOf(G.Meta.hero(run.hero).xp);
+    const xpHTML = xp
+      ? `<div class="xp-gain"><div class="xp-line"><b>+${xp.xp} expérience</b> pour ${G.HEROES[run.hero].name.toLowerCase()}` +
+        ((run.pacts || []).length ? ` <small>(pactes : +${Math.round(G.Meta.pactXp(run.pacts) * 100)} %)</small>` : '') +
+        `</div><div class="xp-bar"><div class="xp-fill" style="width:${lv.next ? Math.round((lv.into / lv.next) * 100) : 100}%"></div></div>` +
+        `<div class="xp-lv">Niveau ${lv.level}${xp.after > xp.before ? ` — <b>${xp.after - xp.before} point${xp.after - xp.before > 1 ? 's' : ''} de compétence à dépenser</b>` : ''}</div></div>`
+      : '';
     go('end', () => {
       el.innerHTML =
         `<div class="title-rose lit" style="width:min(46vw,200px)"><img alt="" src="${G.Art.rosace(won ? 'win' : 'lose', won ? 'or' : 'nuit', 220)}"></div>` +
         `<h2>${won ? 'La rosace est sauve' : 'Ton vitrail s’est brisé'}</h2>` +
         `<p>${won ? 'Aldric s’effondre en mille éclats de lumière. Dans la nef, le jour revient, couleur de rubis et de saphir.' : `Tu es tombé à l’acte ${ROMAN[run.act]}, ${G.ACT_POOLS[run.act].name.toLowerCase()}. Le grimoire se referme, mais il se souviendra.`}</p>` +
         `<div class="end-stats"><div><b>${run.floor}</b><small>Étages</small></div><div><b>${s.kills}</b><small>Ennemis</small></div><div><b>${s.cards}</b><small>Cartes jouées</small></div></div>` +
+        xpHTML +
         (newPalier ? `<p class="unlock">Palier ${newPalier} débloqué pour ${G.HEROES[run.hero].name.toLowerCase()} : ${R.PALIERS[newPalier]}</p>` : '') +
         unlocks.map((id) => `<p class="unlock">${G.HEROES[id].name} s’est éveillé${id === 'sorciere' ? 'e' : ''} !</p>`).join('') +
-        `<div class="menu"><button class="btn gold" id="b-again">Nouvelle ascension</button><button class="btn ghost" id="b-home">Titre</button></div>`;
+        `<div class="menu"><button class="btn gold" id="b-again">Nouvelle ascension</button>` +
+        (xp && G.Meta.points(run.hero) > 0 ? `<button class="btn" id="b-skills">Dépenser mes points</button>` : '') +
+        `<button class="btn ghost" id="b-home">Titre</button></div>`;
       $('#b-again').onclick = () => go('heroes', renderHeroes);
+      const sk = $('#b-skills');
+      if (sk) sk.onclick = () => openHub('skills', run.hero);
       $('#b-home').onclick = () => go('title', renderTitle);
     });
   }

@@ -575,6 +575,54 @@
     art: 'heart', quote: 'Pas encore.',
   });
 
+  // ---------- cartes débloquées par les succès (champ lock)
+  card('tourbillon', {
+    hero: 'chevalier', name: 'Tourbillon', type: 'atk', rarity: 'u', cost: 2, lock: 'meute',
+    v: { d: 8 }, up: { d: 11 }, text: 'Inflige {D} dégâts à tous les ennemis.',
+    play: (c, v) => c.attackAll(v.d),
+    art: 'swords', quote: 'La lame trace un cercle ; personne n’en sort.',
+  });
+  card('forteresse', {
+    hero: 'chevalier', name: 'Forteresse', type: 'skl', rarity: 'r', cost: 3, upCost: 2, exhaust: true, lock: 'rempart50',
+    v: { b: 30 }, up: { b: 30 }, text: 'Gagne {b} Armure. Épuise.',
+    play: (c, v) => c.block(v.b),
+    art: 'tower', quote: 'Je suis devenu les murs.',
+  });
+  card('nova', {
+    hero: 'sorciere', name: 'Nova de cendre', type: 'atk', rarity: 'u', cost: 2, lock: 'escorte',
+    v: { d: 5, u: 2 }, up: { d: 7, u: 3 }, text: 'Inflige {D} dégâts à tous les ennemis et leur applique {u} Brûlure.',
+    play: (c, v) => {
+      c.attackAll(v.d);
+      c.alive().forEach((e) => c.apply('brulure', v.u, e));
+    },
+    art: 'sun', quote: 'Une seule étincelle, et la nef s’embrase.',
+  });
+  card('immolation', {
+    hero: 'sorciere', name: 'Immolation', type: 'atk', rarity: 'r', cost: 2, lock: 'pyromane',
+    v: { x: 2 }, up: { x: 3 }, text: 'Inflige {x} fois la Brûlure de la cible en dégâts.',
+    play: (c, v) => c.attack(c.burn() * v.x),
+    art: 'flame', quote: 'Ce qui couvait devient brasier.',
+  });
+  card('pluieSang', {
+    hero: 'saigneur', name: 'Pluie de sang', type: 'atk', rarity: 'u', cost: 1, hp: 4, lock: 'hemophile',
+    v: { d: 9 }, up: { d: 13 }, text: 'Paie 4 PV. Inflige {D} dégâts à tous les ennemis.',
+    play: (c, v) => c.attackAll(v.d),
+    art: 'drop', quote: 'Le ciel de la nef saigne avec moi.',
+  });
+  card('festin', {
+    hero: 'saigneur', name: 'Festin', type: 'atk', rarity: 'r', cost: 2, lock: 'cent',
+    v: { d: 14 }, up: { d: 18 }, text: 'Inflige {D} dégâts. Si la cible tombe, gagne 4 PV maximum.',
+    play: (c, v) => {
+      const t = c.e;
+      c.attack(v.d);
+      if (t.hp <= 0) {
+        c.p.maxHp += 4;
+        c.p.hp += 4;
+      }
+    },
+    art: 'chalice', quote: 'Rien ne se perd.',
+  });
+
   // ---------- malédictions
   card('doute', {
     name: 'Doute', type: 'curse', rarity: 'curse', cost: -1, unplayable: true,
@@ -821,15 +869,18 @@
   // ------------------------------------------------------------------ reliques
   // hooks : combatStart(c), turnStart(c), combatEnd(run), cardPlayed(c, card), hpLow(c)
   const RELICS = {
-    cendrier: { name: 'Cendrier ardent', rarity: 'start', art: 'flame', pal: 'amethyste', desc: 'Au début de chaque combat, applique 3 Brûlure à l’ennemi.', combatStart: (c) => c.apply('brulure', 3) },
+    cendrier: { name: 'Cendrier ardent', rarity: 'start', art: 'flame', pal: 'amethyste', desc: 'Au début de chaque combat, applique 3 Brûlure à tous les ennemis.', combatStart: (c) => c.enemies.forEach((e) => c.apply('brulure', 3, e)) },
     calice: { name: 'Calice de sang', rarity: 'start', art: 'chalice', pal: 'rubis', desc: 'Après chaque combat, soigne 9 PV.', combatEnd: () => G.Run.heal(9) },
+    vitrailSaint: { name: 'Vitrail saint', rarity: 'c', lock: 'gardien', art: 'sun', pal: 'saphir', desc: 'Au début de chaque combat, soigne 3 PV.', combatStart: (c) => c.heal(3) },
+    aureole: { name: 'Auréole ternie', rarity: 'u', lock: 'intouchable', art: 'crown', pal: 'or', desc: 'Élites et gardiens commencent chaque combat avec 1 Faiblesse.', combatStart: (c) => c.enemies.forEach((e) => (e.def.elite || e.def.boss) && c.apply('faib', 1, e)) },
+    trinite: { name: 'Trinité', rarity: 'r', lock: 'trio', art: 'rose', pal: 'amethyste', desc: '+1 Encre par tour.', energy: 1 },
     ecuSaphir: { name: 'Écu de saphir', rarity: 'start', art: 'shield', pal: 'saphir', desc: 'Au début de chaque combat, gagne 6 Armure.', combatStart: (c) => c.block(6) },
     chapelet: { name: 'Chapelet d’ambre', rarity: 'c', art: 'rose', pal: 'ambre', desc: 'Après chaque combat, soigne 6 PV.', combatEnd: (run) => G.Run.heal(6) },
     encrier: { name: 'Encrier sans fond', rarity: 'c', art: 'chalice', pal: 'nuit', desc: '+1 Encre au premier tour de chaque combat.', turnStart: (c) => c.turn === 1 && c.gainInk(1) },
     plume: { name: 'Plume de corbeau', rarity: 'c', art: 'feather', pal: 'nuit', desc: 'Pioche 2 cartes de plus au premier tour.', turnStart: (c) => c.turn === 1 && c.draw(2) },
     cierge: { name: 'Cierge éternel', rarity: 'c', art: 'candle', pal: 'or', desc: 'Au début de chaque combat, gagne 1 Force.', combatStart: (c) => c.self('force', 1) },
-    sablier: { name: 'Sablier fêlé', rarity: 'c', art: 'hourglass', pal: 'ambre', desc: 'L’ennemi commence chaque combat avec 2 Fêlure.', combatStart: (c) => c.apply('fel', 2) },
-    cendre: { name: 'Cendre bénite', rarity: 'c', art: 'flame', pal: 'os', desc: 'L’ennemi commence chaque combat avec 1 Faiblesse.', combatStart: (c) => c.apply('faib', 1) },
+    sablier: { name: 'Sablier fêlé', rarity: 'c', art: 'hourglass', pal: 'ambre', desc: 'Les ennemis commencent chaque combat avec 2 Fêlure.', combatStart: (c) => c.enemies.forEach((e) => c.apply('fel', 2, e)) },
+    cendre: { name: 'Cendre bénite', rarity: 'c', art: 'flame', pal: 'os', desc: 'Les ennemis commencent chaque combat avec 1 Faiblesse.', combatStart: (c) => c.enemies.forEach((e) => c.apply('faib', 1, e)) },
     couronne: { name: 'Couronne d’épines', rarity: 'c', art: 'crown', pal: 'rubis', desc: 'Au début de chaque combat, gagne 3 Épines permanentes.', combatStart: (c) => c.self('epinesP', 3) },
     bourse: { name: 'Bourse du passeur', rarity: 'c', art: 'coin', pal: 'or', desc: 'Gagne 50 % d’or en plus.' },
     lanterne: { name: 'Lanterne sourde', rarity: 'u', art: 'candle', pal: 'ambre', desc: 'Au début de ton tour, si tu n’as pas d’Armure, gagne 4 Armure.', turnStart: (c) => c.p.block === 0 && c.block(4) },
@@ -849,6 +900,22 @@
 
   // ------------------------------------------------------------------ événements
   const EVENTS = [
+    {
+      id: 'reliquaireVerre', title: 'Le Reliquaire de verre', art: 'chalice', pal: 'saphir',
+      text: 'Sous une cloche de cristal, un coussin de velours attend une offrande. La lumière y tombe en colonne, comme sur un saint.',
+      choices: [
+        { label: 'Y déposer une carte', detail: 'Bénis une carte de ton choix.', act: (R) => R.chooseEnchant('bless') },
+        { label: 'Garder tes distances', detail: 'Rien ne se passe.', act: () => 'La lumière se retire doucement.' },
+      ],
+    },
+    {
+      id: 'forgeNoire', title: 'La Forge noire', art: 'flame', pal: 'nuit',
+      text: 'Un four où brûle un feu sans couleur. Ce qu’on y trempe en ressort plus fort, et plus avide.',
+      choices: [
+        { label: 'Tremper une carte', detail: 'Maudis une carte : plus puissante, mais avec un prix.', act: (R) => R.chooseEnchant('curse') },
+        { label: 'Reculer', detail: 'Rien ne se passe.', act: () => 'Le feu sans couleur te regarde partir.' },
+      ],
+    },
     {
       id: 'confessionnal', title: 'Le Confessionnal', art: 'hand', pal: 'nuit',
       text: 'Derrière la grille de bois, quelqu’un respire. Une voix sans âge murmure : « Dis-moi ce que tu portes, et je t’en délivrerai. »',
@@ -952,20 +1019,45 @@
   G.RELICS = RELICS;
   G.EVENTS = EVENTS;
 
+  // ------------------------------------------------------------------ cartes transformées
+  // Une carte peut porter une transformation : bénédiction (avantage pur) ou malédiction
+  // (plus puissante, mais avec un prix). Elle est notée dans l'instance de la carte : card.ench.
+  const ENCH = {
+    eco: { name: 'Économe', kind: 'bless', desc: 'Coûte 1 Encre de moins.', ok: (def) => def.cost >= 1 },
+    vive: { name: 'Vive', kind: 'bless', desc: 'Pioche 1 carte quand tu la joues.', onPlay: (c) => c.draw(1) },
+    tenace: { name: 'Tenace', kind: 'bless', desc: 'Reste dans ta main à la fin du tour.', ok: (def) => def.type !== 'pow' },
+    ardente: { name: 'Ardente', kind: 'bless', desc: 'Inflige 3 dégâts à la cible quand tu la joues.', onPlay: (c) => c.pierce(3) },
+    sainte: { name: 'Sainte', kind: 'bless', desc: 'Soigne 2 PV quand tu la joues.', onPlay: (c) => c.heal(2) },
+    sanglante: { name: 'Sanglante', kind: 'curse', desc: 'Ses valeurs augmentent de moitié, mais elle coûte 2 PV.', mul: 1.5, hp: 2, ok: (def) => Object.keys(def.v || {}).length > 0 },
+    fragile: { name: 'Fragile', kind: 'curse', desc: 'Ses valeurs doublent, mais elle s’épuise.', mul: 2, exhaust: true, ok: (def) => Object.keys(def.v || {}).length > 0 && def.type !== 'pow' },
+  };
+  G.ENCH = ENCH;
+  /** Transformations possibles pour une carte (kind : 'bless' ou 'curse'). */
+  G.enchOptions = function (cardInst, kind) {
+    const def = CARDS[cardInst.id];
+    if (def.type === 'curse' || cardInst.ench) return [];
+    return Object.keys(ENCH).filter((k) => ENCH[k].kind === kind && (!ENCH[k].ok || ENCH[k].ok(def)));
+  };
+
   G.cardCost = function (cardInst) {
     const def = CARDS[cardInst.id];
     if (def.unplayable) return -1;
-    if (cardInst.up && def.upCost !== undefined) return def.upCost;
-    return def.cost;
+    let cost = cardInst.up && def.upCost !== undefined ? def.upCost : def.cost;
+    if (cardInst.ench === 'eco') cost = Math.max(0, cost - 1);
+    return cost;
   };
-  /** PV à payer pour jouer la carte (Saigneur). */
+  /** PV à payer pour jouer la carte (Saigneur, cartes sanglantes). */
   G.cardHp = function (cardInst) {
     const def = CARDS[cardInst.id];
-    if (!def.hp) return 0;
-    return cardInst.up && def.upHp !== undefined ? def.upHp : def.hp;
+    let hp = def.hp ? (cardInst.up && def.upHp !== undefined ? def.upHp : def.hp) : 0;
+    if (cardInst.ench && ENCH[cardInst.ench] && ENCH[cardInst.ench].hp) hp += ENCH[cardInst.ench].hp;
+    return hp;
   };
   G.cardVals = (cardInst) => {
     const def = CARDS[cardInst.id];
-    return cardInst.up ? Object.assign({}, def.v, def.up) : def.v;
+    const v = cardInst.up ? Object.assign({}, def.v, def.up) : Object.assign({}, def.v);
+    const en = cardInst.ench && ENCH[cardInst.ench];
+    if (en && en.mul) for (const k in v) if (typeof v[k] === 'number' && v[k] > 0) v[k] = Math.ceil(v[k] * en.mul);
+    return v;
   };
 })(typeof window !== 'undefined' ? (window.G = window.G || {}) : module.exports);

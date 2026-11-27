@@ -3,6 +3,7 @@
  * le taux de victoire et l'acte où il meurt. Usage : node tools/balance.js [parties] */
 'use strict';
 const HERO = process.argv[3] || 'chevalier';
+const GROUPS = process.env.NOGROUPS ? 0 : 1;
 const path = require('path');
 const vm = require('vm');
 const fs = require('fs');
@@ -15,7 +16,7 @@ function load() {
     localStorage: { getItem: (k) => store[k] || null, setItem: (k, v) => (store[k] = v), removeItem: (k) => delete store[k] },
   };
   vm.createContext(ctx);
-  for (const f of ['data.js', 'engine.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx);
+  for (const f of ['data.js', 'engine.js', 'meta.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx);
   const G = window.G;
   G.UI = { toast() {} };
   return G;
@@ -25,10 +26,12 @@ function load() {
 function playTurn(G, c) {
   let guard = 0;
   while (!c.over && guard++ < 30) {
+    // comme un joueur : on abat d'abord l'ennemi le plus fragile
+    const weakest = c.alive().reduce((a, b) => (b.hp + b.block < a.hp + a.block ? b : a), c.alive()[0]);
+    if (weakest) c.setTarget(weakest.uid);
     const playable = c.hand.filter((k) => c.canPlay(k));
     if (!playable.length) break;
-    const info = c.intentInfo();
-    const incoming = info && info.dmg ? info.dmg * info.hits : 0;
+    const incoming = c.incomingRaw();
     const need = Math.max(0, incoming - c.p.block);
     const score = (k) => {
       const d = G.CARDS[k.id];
@@ -89,10 +92,17 @@ function runOnce(G) {
     const plan = ['combat', 'combat', Math.random() < 0.5 ? 'event' : 'combat', 'elite', 'altar', 'boss'];
     for (const step of plan) {
       if (step === 'combat' || step === 'elite' || step === 'boss') {
-        const id = step === 'boss' ? pool.boss : step === 'elite' ? G.pick(pool.elite) : G.pick(pool.normal);
+        let id = step === 'boss' ? pool.boss : step === 'elite' ? G.pick(pool.elite) : G.pick(pool.normal);
+        // meutes et escortes, comme dans le jeu
+        if (step === 'combat' && Math.random() < GROUPS * 0.3) {
+          const n = Math.random() < 0.5 ? 2 : 3;
+          id = Array.from({ length: n }, () => ({ id: G.pick(pool.normal), minion: 'pack' + n }));
+        } else if (step === 'elite' && Math.random() < GROUPS * 0.45) {
+          id = [{ id }].concat(Array.from({ length: Math.random() < 0.8 ? 1 : 2 }, () => ({ id: G.pick(pool.normal), minion: 'escort' })));
+        }
         if (!fight(G, id)) return { won: false, act, step };
         R.gainGold(step === 'elite' ? 30 : step === 'boss' ? 60 : 15);
-        for (const rid of R.run.relics) if (G.RELICS[rid].combatEnd) G.RELICS[rid].combatEnd(R.run);
+        for (const fx of R.effects()) if (fx.combatEnd) fx.combatEnd(R.run);
         reward(G, step === 'elite' ? 0.1 : step === 'boss' ? 1 : 0);
         if (step === 'elite') R.gainRandomRelic();
         if (step === 'boss') {

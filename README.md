@@ -26,7 +26,9 @@ Le dossier se publie tel quel sur GitHub Pages (Settings → Pages → branche `
   - **Enragé** : l'ennemi commence avec 2 Force. Tu gagnes plus d'or et des cartes plus rares.
   - **Cuirassé** : l'ennemi est plus robuste. Tu gagnes le double d'or.
   - **Dans la brume** : ses intentions sont cachées. Une fiole t'est garantie.
-- Chaque combat est un duel. Tu disposes de **3 points d'Encre** par tour et tu pioches 5 cartes.
+- Un combat oppose ton héros à un ennemi, ou à une **meute de 2 ou 3 ennemis** (porte marquée ×2 ou ×3) ; certaines élites viennent **escortées**.
+  Pour viser, **fais glisser la carte sur l'ennemi** choisi (ou touche un ennemi pour en faire ta cible).
+- Tu disposes de **3 points d'Encre** par tour et tu pioches 5 cartes.
   **Touche une carte** pour la choisir, puis **touche-la encore** pour la jouer, ou fais-la glisser vers le haut. Un appui long l'affiche en grand.
 - Dès que ton doigt se pose sur une carte, les jauges **montrent son effet** : PV retirés à l'ennemi et Armure gagnée.
   La partie claire de ta jauge indique les PV que tu perdras si tu termines ton tour.
@@ -53,13 +55,28 @@ Le dossier se publie tel quel sur GitHub Pages (Settings → Pages → branche `
 ## Contenu
 
 - **Trois héros**, chacun avec ses cartes et sa relique :
-  - **le Chevalier** (34 cartes) : armure, épines, contre-attaques ;
-  - **la Sorcière** (22 cartes) : la **Brûlure** ronge l'ennemi à chaque tour, à travers l'Armure, et ses sorts s'enchaînent ;
-  - **le Saigneur** (21 cartes) : il **paie en PV** des coups dévastateurs et vole la vie.
+  - **le Chevalier** (36 cartes) : armure, épines, contre-attaques ;
+  - **la Sorcière** (24 cartes) : la **Brûlure** ronge l'ennemi à chaque tour, à travers l'Armure, et ses sorts s'enchaînent ;
+  - **le Saigneur** (23 cartes) : il **paie en PV** des coups dévastateurs et vole la vie.
 - **Progression entre les parties** : la Sorcière s'éveille après ton premier gardien vaincu, le Saigneur après le troisième.
   Chaque victoire débloque le **palier** suivant (5 paliers de difficulté cumulables) pour le héros qui l'a remportée.
 - **24 ennemis** : 15 ennemis, 6 élites et 3 gardiens, du Rat-moine voleur à Aldric, l'Évêque de verre.
-- **21 reliques**, **8 fioles** et **10 événements**.
+- **26 reliques**, **8 fioles** et **12 événements**.
+
+## Progression (Grimoire)
+
+Le bouton **Grimoire** de l'écran titre réunit tout ce qui suit d'une partie à l'autre.
+
+- **Pactes** : avant de partir, signe jusqu'à 3 pactes (9 en tout). Chacun ajoute une contrainte
+  (ennemis plus forts, moins d'or, pas de soin à l'autel…) et augmente l'expérience gagnée.
+- **Compétences** : chaque partie rapporte de l'expérience au héros joué (étages, ennemis, élites, gardiens, victoire).
+  Chaque niveau (15 au plus) donne un point à placer dans son arbre : 3 branches de 4 compétences.
+  On peut tout réinitialiser gratuitement.
+- **Cartes transformées** : une carte peut être **bénie** (moins chère, conservée en main, plus forte…)
+  à l'autel ou chez le marchand, ou **maudite** (bien plus puissante, mais coûteuse en PV ou épuisée) lors d'événements.
+- **Succès** : 19 succès, dont beaucoup débloquent des cartes, des reliques ou des pactes.
+- **Collection** : cartes, reliques, ennemis et fioles rencontrés ; ce qui reste à découvrir apparaît en silhouette.
+- **Statistiques** : générales, par héros, cartes les plus jouées, ennemis les plus vaincus et les plus meurtriers, et les 20 dernières parties.
 
 ## Structure
 
@@ -67,6 +84,7 @@ Le dossier se publie tel quel sur GitHub Pages (Settings → Pages → branche `
 index.html, style.css   écrans et style
 js/data.js              cartes, héros, ennemis, reliques, événements
 js/engine.js            partie en cours, portes, règles de combat, sauvegardes et migrations
+js/meta.js              expérience, compétences, pactes, succès, collection, statistiques
 js/cloud.js             comptes en ligne (Supabase) et synchronisation
 js/config.js            adresse et clé publique du projet Supabase (vides = sans compte)
 js/art.js               générateur de vitraux (Voronoï, plomb, grisaille, motifs et figures)
