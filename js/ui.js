@@ -102,13 +102,14 @@
       const st = steps[i++];
       const target = $(st.sel);
       if (!target) return next();
-      const r = target.getBoundingClientRect();
+      const b = target.getBoundingClientRect();
+      const r = { left: sx(b.left), top: sx(b.top), width: sx(b.width), height: sx(b.height), bottom: sx(b.bottom) };
       const pad = 6;
-      const below = r.top < window.innerHeight * 0.45;
+      const below = r.top < stageH() * 0.45;
       coach.className = 'show';
       coach.innerHTML =
         `<div class="coach-ring" style="left:${r.left - pad}px;top:${r.top - pad}px;width:${r.width + pad * 2}px;height:${r.height + pad * 2}px"></div>` +
-        `<div class="coach-bubble" style="${below ? `top:${r.bottom + 14}px` : `bottom:${window.innerHeight - r.top + 14}px`}">${st.text}<div class="coach-next">${i < steps.length ? 'Toucher pour continuer' : 'Compris'} · ${i}/${steps.length}</div></div>` +
+        `<div class="coach-bubble" style="${below ? `top:${r.bottom + 14}px` : `bottom:${stageH() - r.top + 14}px`}">${st.text}<div class="coach-next">${i < steps.length ? 'Toucher pour continuer' : 'Compris'} · ${i}/${steps.length}</div></div>` +
         (st.finger ? `<div class="coach-finger" style="left:${r.left + r.width / 2}px;top:${r.top + r.height * 0.55}px"></div>` : '');
     };
     coach.onclick = next;
@@ -120,13 +121,14 @@
     const tip = $('#tip');
     tip.innerHTML = `<b>${title}</b>${text}`;
     tip.style.display = 'block';
-    const r = el.getBoundingClientRect();
+    const b = el.getBoundingClientRect();
+    const r = { left: sx(b.left), top: sx(b.top), width: sx(b.width), bottom: sx(b.bottom) };
     const tw = tip.offsetWidth;
     const th = tip.offsetHeight;
     let x = r.left + r.width / 2 - tw / 2;
-    x = Math.max(8, Math.min(window.innerWidth - tw - 8, x));
+    x = Math.max(8, Math.min(stageW() - tw - 8, x));
     let y = r.bottom + 8;
-    if (y + th > window.innerHeight - 8) y = r.top - th - 8;
+    if (y + th > stageH() - 8) y = r.top - th - 8;
     tip.style.left = x + 'px';
     tip.style.top = y + 'px';
   }
@@ -483,7 +485,7 @@
         try {
           await navigator.clipboard.writeText(code);
           UI.toast('Code copié');
-        } catch (e) {
+        } catch {
           ta.focus();
           ta.select();
           UI.toast('Sélectionné : copie-le avec le menu de ton téléphone');
@@ -522,14 +524,14 @@
   function loadSettings() {
     try {
       Object.assign(UI.settings, JSON.parse(localStorage.getItem('grimoire-vitrail.settings') || '{}'));
-    } catch (e) {
+    } catch {
       /* ignoré */
     }
   }
   function saveSettings() {
     try {
       localStorage.setItem('grimoire-vitrail.settings', JSON.stringify(UI.settings));
-    } catch (e) {
+    } catch {
       /* ignoré */
     }
   }
@@ -937,9 +939,33 @@
     pv.style.width = (lost / max) * 100 + '%';
   }
 
+  /**
+   * Scène : sur un grand écran (PC, tablette à l'horizontale), toute l'interface est agrandie
+   * pour remplir la hauteur, et les écrans s'élargissent (classe « wide »).
+   * Sur téléphone, échelle 1 : rien ne change. UI.S convertit les pixels d'écran en pixels de scène.
+   */
+  UI.S = 1;
+  const sx = (v) => v / UI.S;
+  const stageW = () => window.innerWidth / UI.S;
+  const stageH = () => window.innerHeight / UI.S;
+  function fitStage() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const desk = w >= 700 && h >= 520 && w > h * 0.9;
+    const s = desk ? Math.min(2.4, Math.max(1, h / 800)) : 1;
+    UI.S = s;
+    const st = $('#stage');
+    st.style.width = w / s + 'px';
+    st.style.height = h / s + 'px';
+    st.style.transform = s === 1 ? 'none' : `scale(${s})`;
+    document.documentElement.classList.toggle('wide', w / s >= 900);
+    document.documentElement.classList.toggle('desk', desk);
+  }
+
   function setCardWidth() {
-    const w = Math.min(window.innerWidth, 520);
-    const cw = Math.max(92, Math.min(120, Math.floor(w * 0.29)));
+    const wide = document.documentElement.classList.contains('wide');
+    const w = Math.min(stageW(), wide ? 760 : 520);
+    const cw = Math.max(92, Math.min(wide ? 138 : 120, Math.floor(w * (wide ? 0.2 : 0.29))));
     document.documentElement.style.setProperty('--cw', cw + 'px');
   }
 
@@ -1149,7 +1175,7 @@
     const aimed = aim && C.combat.enemies.length > 1 ? C.combat.enemies.find((x) => x.uid === aim) : null;
     hint.textContent = aimed ? 'Relâche pour viser : ' + aimed.name : 'Relâche pour jouer';
     hint.classList.toggle('show', playable);
-    el.style.transform = `translateX(calc(-50% + ${dx + parseBaseX(el)}px)) translateY(${dy - 30}px) rotate(${dx * 0.04}deg) scale(1.12)`;
+    el.style.transform = `translateX(calc(-50% + ${sx(dx) + parseBaseX(el)}px)) translateY(${sx(dy) - 30}px) rotate(${Math.max(-6, Math.min(6, sx(dx) * 0.04))}deg) scale(1.12)`;
   }
   /** Ennemi vivant sous le point (x, y), avec une marge généreuse pour le doigt. */
   function foeAt(x, y) {
@@ -1309,8 +1335,8 @@
     const def = G.CARDS[card.id];
     const win = ($(foeSel(c.e.uid) + ' .window') || $('#combat .window')).getBoundingClientRect();
     const r = el.getBoundingClientRect();
-    const tx = win.left + win.width / 2 - (r.left + r.width / 2);
-    const ty = win.top + win.height * 0.55 - (r.top + r.height / 2);
+    const tx = sx(win.left + win.width / 2 - (r.left + r.width / 2));
+    const ty = sx(win.top + win.height * 0.55 - (r.top + r.height / 2));
     // la carte s'envole vers sa cible et se dissout en lumière (animation légère : transform + opacité)
     const toEnemy = def.type === 'atk';
     el.classList.add('fly', 'played');
@@ -1345,7 +1371,7 @@
     for (const [uid, el] of handEls) {
       const r = el.getBoundingClientRect();
       el.classList.add('fly');
-      el.style.transform = `${el.dataset.base} translate(${disc.left - r.left}px, ${disc.top - r.top}px) scale(0.3)`;
+      el.style.transform = `${el.dataset.base} translate(${sx(disc.left - r.left)}px, ${sx(disc.top - r.top)}px) scale(0.3)`;
       el.style.opacity = '0';
       void uid;
     }
@@ -1379,6 +1405,10 @@
     if (c.over) return handleOver();
     C.fxDelay = 0;
     c.startTurn();
+    if (c.over) {
+      renderCombat();
+      return handleOver();
+    }
     saveCombat('player');
     C.busy = false;
     renderCombat(true);
@@ -1438,9 +1468,9 @@
       const f = document.createElement('div');
       f.className = 'float ' + (cls || '');
       f.textContent = text;
-      f.style.left = x + (Math.random() - 0.5) * 30 + 'px';
-      f.style.top = y + (Math.random() - 0.5) * 16 + 'px';
-      document.body.appendChild(f);
+      f.style.left = sx(x) + (Math.random() - 0.5) * 30 + 'px';
+      f.style.top = sx(y) + (Math.random() - 0.5) * 16 + 'px';
+      $('#stage').appendChild(f);
       setTimeout(() => f.remove(), 1050);
     }, delay || 0);
   }
@@ -1744,7 +1774,6 @@
 
   // ------------------------------------------------------------------ autel
   function renderAltar() {
-    const run = R.run;
     R.saveResume({ screen: 'altar' });
     const el = $('#altar');
     const noHeal = R.altarHeal() <= 0;
@@ -2471,14 +2500,83 @@
     });
   }
 
+  // ------------------------------------------------------------------ clavier (PC)
+  // 1 à 9 (0 = 10e) : choisir une carte, la même touche la joue ; Entrée / Espace : fin du tour ;
+  // ← → : changer de cible ; Échap : annuler, fermer, ou ouvrir la pause.
+  const CLOSERS = { hub: '#hub-close', deck: '#b-deck-close', account: '#acc-close', pick: '#b-pick-cancel', menu: '#m-resume' };
+  function onKey(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) return;
+    const coach = $('#coach.show');
+    if (coach) {
+      if (['Enter', ' ', 'Escape'].includes(e.key)) {
+        e.preventDefault();
+        coach.click();
+      }
+      return;
+    }
+    const ov = [...$$('.overlay.show')].pop();
+    if (ov) {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      const btn = CLOSERS[ov.id] && $(CLOSERS[ov.id]);
+      if (btn) btn.click();
+      else if (ov.id === 'cardview' || ov.id === 'deck') ov.classList.remove('show');
+      return;
+    }
+    if (current !== 'combat' || !C.combat) return;
+    const c = C.combat;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (selectedUid) deselect();
+      else if (!C.busy) openMenu();
+      return;
+    }
+    if (C.busy || c.over) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (selectedUid) {
+        const card = c.hand.find((k) => k.uid === selectedUid);
+        if (card) return tryPlay(card, handEls.get(card.uid));
+      }
+      return endTurn();
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      const alive = c.alive();
+      if (alive.length < 2) return;
+      e.preventDefault();
+      const i = alive.indexOf(c.e);
+      const next = alive[(i + (e.key === 'ArrowRight' ? 1 : alive.length - 1)) % alive.length];
+      c.setTarget(next.uid);
+      renderCombat();
+      if (selectedUid) {
+        const card = c.hand.find((k) => k.uid === selectedUid);
+        if (card) showPlayPreview(card);
+      }
+      return;
+    }
+    if (/^[0-9]$/.test(e.key)) {
+      const idx = e.key === '0' ? 9 : +e.key - 1;
+      const card = c.hand[idx];
+      const el = card && handEls.get(card.uid);
+      if (!el) return;
+      e.preventDefault();
+      if (selectedUid === card.uid) tryPlay(card, el);
+      else select(card, el);
+    }
+  }
+
   // ------------------------------------------------------------------ démarrage
   UI.init = function () {
+    window.addEventListener('keydown', onKey);
     R.loadMeta();
     R.askPersistence();
     loadSettings();
     if (G.Cloud) G.Cloud.init();
+    fitStage();
     setCardWidth();
     window.addEventListener('resize', () => {
+      fitStage();
       setCardWidth();
       if (current === 'combat') layoutHand();
       if (current === 'map') renderMap();

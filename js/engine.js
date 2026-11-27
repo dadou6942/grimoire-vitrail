@@ -48,7 +48,7 @@
   const notify = (what) => R.listeners.forEach((fn) => {
     try {
       fn(what);
-    } catch (e) {
+    } catch {
       /* un auditeur défaillant ne doit pas casser la sauvegarde */
     }
   });
@@ -60,7 +60,7 @@
         if (!raw) continue;
         const v = JSON.parse(raw);
         if (v && typeof v === 'object') return v;
-      } catch (e) {
+      } catch {
         /* illisible : on essaie la copie de secours */
       }
     }
@@ -72,7 +72,7 @@
       localStorage.setItem(key, raw);
       localStorage.setItem(key + BAK, raw);
       return true;
-    } catch (e) {
+    } catch {
       return false;
     }
   }
@@ -80,7 +80,7 @@
     try {
       localStorage.removeItem(key);
       localStorage.removeItem(key + BAK);
-    } catch (e) {
+    } catch {
       /* ignoré */
     }
   }
@@ -89,7 +89,7 @@
   R.askPersistence = function () {
     try {
       if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-    } catch (e) {
+    } catch {
       /* ignoré */
     }
   };
@@ -197,7 +197,7 @@
       const data = JSON.parse(json);
       R.applyRemote(data.meta, data.run, true);
       return null;
-    } catch (e) {
+    } catch {
       return 'Le code est incomplet ou abîmé. Recopie-le en entier.';
     }
   };
@@ -735,6 +735,7 @@
       this.stats.hpLost += n;
       this.emit({ t: 'pay', n });
       if (this.p.st.soif) this.self('force', this.p.st.soif);
+      this.checkLow();
       this.checkEnd();
     }
     addToHand(id, n) {
@@ -825,10 +826,7 @@
       if (who === 'e' && dmg > 0 && this.p.st.calice && this.p.hp > 0 && kind !== 'burn') {
         this.p.hp = Math.min(this.p.maxHp, this.p.hp + this.p.st.calice);
       }
-      if (who === 'p' && !this.hpLowUsed && tgt.hp > 0 && tgt.hp * 2 < tgt.maxHp) {
-        this.hpLowUsed = true;
-        this.effectHook('hpLow');
-      }
+      if (who === 'p') this.checkLow();
       if (who === 'e' && tgt.hp > 0 && tgt.st.plomb && d > 0 && kind !== 'burn' && kind !== 'self') {
         tgt.block += tgt.st.plomb;
         this.emit({ t: 'block', who: 'e', uid: tgt.uid, n: tgt.st.plomb });
@@ -851,10 +849,10 @@
         const n = makeEnemy(id, idx, null, this.mod, R.run);
         n.spawnedBy = e.uid;
         n.hp = n.maxHp = Math.max(8, Math.ceil(e.hp / sp.into.length));
-        n.st.force = e.st.force || 0;
         this.enemies.push(n);
         made.push(n);
         this.effectHook('enemySpawn', n);
+        n.st.force = Math.max(n.st.force || 0, e.st.force || 0);
         n.moveKey = n.def.ai(n, n.turn, this.rng);
         n.intent = n.def.moves[n.moveKey];
       }
@@ -894,6 +892,13 @@
         const dmg = Math.max(m.min || 3, la ? Math.round(la.dmg * m.copy) : 0);
         e.intent = Object.assign({}, m, { dmg, name: la && G.CARDS[la.id] ? `${m.name} : ${G.CARDS[la.id].name}` : m.name });
       }
+    }
+    /** Première fois du combat que les PV du héros passent sous la moitié (coup, PV payés, Brûlure). */
+    checkLow() {
+      const p = this.p;
+      if (this.hpLowUsed || p.hp <= 0 || p.hp * 2 >= p.maxHp) return;
+      this.hpLowUsed = true;
+      this.effectHook('hpLow');
     }
     enemyDown(e) {
       if (this.killed.includes(e)) return;
@@ -954,6 +959,7 @@
         this.stats.hpLost += dmg;
         p.st.brulure = b - 1;
         this.emit({ t: 'hit', who: 'p', dmg, blocked: 0, kind: 'burn', idx: 0 });
+        this.checkLow();
         this.checkEnd();
       }
       if (this.over) return;

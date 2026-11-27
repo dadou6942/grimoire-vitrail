@@ -18,6 +18,18 @@ python3 -m http.server 8000
 
 Le dossier se publie tel quel sur GitHub Pages (Settings → Pages → branche `main`, dossier racine).
 
+## Sur PC
+
+Sur un grand écran, l'interface s'agrandit pour remplir la hauteur de la fenêtre et s'élargit (cartes, portes,
+Grimoire). On joue à la souris (cliquer deux fois une carte, ou la glisser sur un ennemi) ou au clavier :
+
+| Touche | Action |
+|---|---|
+| 1 à 9 (0 = 10e carte) | choisir une carte ; la même touche la joue |
+| Entrée ou Espace | jouer la carte choisie, sinon finir le tour |
+| ← → | changer d'ennemi ciblé |
+| Échap | annuler, fermer une fenêtre, ou ouvrir la pause |
+
 ## Règles
 
 - Tu grimpes **3 actes**. Chaque acte compte **5 étages** puis un gardien (boss).

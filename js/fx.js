@@ -102,7 +102,7 @@
       x.clip();
       try {
         x.drawImage(src, rect.left - x0, rect.top - y0, rect.width, rect.height);
-      } catch (e) {
+      } catch {
         x.fillStyle = '#334';
         x.fill();
       }

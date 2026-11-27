@@ -172,7 +172,7 @@
       let ok = false;
       try {
         ok = a.check(ev || { k: 'tick' });
-      } catch (e) {
+      } catch {
         ok = false;
       }
       if (ok) {

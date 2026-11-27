@@ -32,7 +32,7 @@
     try {
       if (Cloud.session) localStorage.setItem(KEY, JSON.stringify(Cloud.session));
       else localStorage.removeItem(KEY);
-    } catch (e) {
+    } catch {
       /* ignoré */
     }
   }
@@ -45,7 +45,7 @@
     const txt = await res.text();
     try {
       data = txt ? JSON.parse(txt) : null;
-    } catch (e) {
+    } catch {
       data = txt;
     }
     if (!res.ok) {
@@ -134,7 +134,7 @@
     if (s) {
       try {
         await call('/auth/v1/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + s.access_token } });
-      } catch (e) {
+      } catch {
         /* déjà déconnecté */
       }
     }
@@ -193,7 +193,7 @@
   Cloud.init = function () {
     try {
       Cloud.session = JSON.parse(localStorage.getItem(KEY) || 'null');
-    } catch (e) {
+    } catch {
       Cloud.session = null;
     }
     G.Run.listeners.push(schedule);
