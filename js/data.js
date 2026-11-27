@@ -629,6 +629,11 @@
     v: {}, up: {}, text: 'Injouable.',
     art: 'eye', quote: 'Et si la lumière mentait ?',
   });
+  card('glasEcho', {
+    name: 'Écho du glas', type: 'curse', rarity: 'curse', cost: -1, unplayable: true,
+    v: {}, up: {}, text: 'Injouable. Disparaît à la fin du combat.',
+    art: 'bell', quote: 'Le son revient toujours, un peu plus faible.',
+  });
   card('blessure', {
     name: 'Plaie', type: 'curse', rarity: 'curse', cost: -1, unplayable: true,
     v: {}, up: {}, text: 'Injouable. Si elle est en main à la fin du tour, perds 2 PV.',
@@ -676,6 +681,9 @@
     soif: { name: 'Soif', icon: 'drop', good: true, desc: 'Gagne {n} Force chaque fois que tu paies des PV.' },
     pacte: { name: 'Pacte de sang', icon: 'drop', good: true, desc: 'Paie {n} PV et gagne 1 Encre au début de chaque tour.' },
     calice: { name: 'Grand calice', icon: 'heart', good: true, desc: 'Chaque coup qui inflige des dégâts te soigne de {n} PV.' },
+    veillee: { name: 'Veillée', icon: 'flame', good: true, desc: 'Quand un allié tombe, gagne {n} Force.' },
+    plomb: { name: 'Corps de plomb', icon: 'rempart', good: true, desc: 'Gagne {n} Armure à chaque coup reçu.' },
+    scelle: { name: 'Scellé', icon: 'key', good: true, desc: 'Abats-le avant {n} tour(s) : il s’ouvre et rend une relique en plus.' },
     vigilance: { name: 'Vigilance', icon: 'veille', good: true, desc: 'Pioche {n} carte(s) de plus à chaque tour.' },
   };
 
@@ -707,6 +715,25 @@
       name: 'Rat-moine', act: 1, hp: [32, 36], art: 'rat', pal: 'ambre',
       moves: { larcin: { name: 'Larcin', dmg: 6, steal: 12 }, morsure: { name: 'Morsure', dmg: 8 } },
       ai: (e, t) => (t % 2 === 0 ? 'larcin' : 'morsure'),
+    },
+    lecteur: {
+      name: 'Le Lecteur sans yeux', act: 1, hp: [42, 46], art: 'reader', pal: 'amethyste',
+      quote: 'Il n’a plus d’yeux, mais il n’oublie aucune page.',
+      moves: {
+        reliure: { name: 'Coup de reliure', dmg: 8 },
+        recopie: { name: 'Recopie', copy: 0.5, min: 6, dmg: 6 },
+        lecture: { name: 'Lecture à voix basse', block: 8, buff: { force: 2 } },
+      },
+      ai: (e, t) => ['reliure', 'recopie', 'lecture', 'recopie'][t % 4],
+    },
+    cierges: {
+      name: 'Essaim de cierges', act: 1, pack: true, hp: [34, 38], art: 'candles', pal: 'os', palB: 'ambre', start: { veillee: 1 },
+      quote: 'Une veillée qui ne veut pas finir.',
+      moves: {
+        cire: { name: 'Cire brûlante', dmg: 5, debuff: { brulure: 1 } },
+        flamme: { name: 'Flamme vive', dmg: 9 },
+      },
+      ai: (e, t) => (t % 2 ? 'flamme' : 'cire'),
     },
     sentinelle: {
       name: 'Sentinelle d’ossements', act: 1, elite: true, hp: [68, 72], art: 'skeleton', pal: 'os',
@@ -767,6 +794,26 @@
       moves: { flamme: { name: 'Flamme', dmg: 7 }, cire: { name: 'Cire brûlante', dmg: 4, hits: 2 } },
       ai: (e, t) => (t % 2 ? 'cire' : 'flamme'),
     },
+    clochePleure: {
+      name: 'La Cloche-qui-pleure', act: 2, hp: [58, 62], art: 'weepingBell', pal: 'or',
+      quote: 'Elle sonne pour chacun de ceux qui sont tombés ici.',
+      moves: {
+        sanglot: { name: 'Sanglot de bronze', dmg: 8, debuff: { faib: 1 } },
+        battant: { name: 'Battant', dmg: 12 },
+        glas: { name: 'Glas funèbre', block: 8, curse: 'glasEcho', n: 2, curseTo: 'pile' },
+      },
+      ai: (e, t) => ['sanglot', 'battant', 'glas'][t % 3],
+    },
+    reliquaireAmb: {
+      name: 'Le Reliquaire ambulant', act: 2, elite: true, hp: [100, 106], art: 'reliquary', pal: 'ambre', start: { scelle: 4 }, quickRelic: true,
+      quote: 'Les saints y dorment. Lui ne dort jamais.',
+      moves: {
+        avaler: { name: 'Avaler ton or', dmg: 7, hits: 2, steal: 20 },
+        couvercle: { name: 'Couvercle clos', block: 14, buff: { force: 1 } },
+        charniere: { name: 'Charnière', dmg: 16 },
+      },
+      ai: (e, t) => ['avaler', 'couvercle', 'charniere', 'avaler'][t % 4],
+    },
     bourreau: {
       name: 'Le Bourreau', act: 2, elite: true, hp: [96, 100], art: 'executioner', pal: 'rubis',
       moves: {
@@ -794,6 +841,28 @@
         unisson: { name: 'Unisson', dmg: 22 },
       },
       ai: (e, t) => ['cantique', 'dissonance', 'crescendo', 'unisson', 'cantique'][t % 5],
+    },
+
+    mereVerriere: {
+      name: 'La Mère-Verrière', act: 2, boss: true, hp: [166, 166], art: 'glassMother', pal: 'saphir', palB: 'ciel',
+      quote: 'Chaque vitrail de la cathédrale est sorti de ses mains.',
+      split: { into: ['eclat', 'eclat'], turns: 3 },
+      moves: {
+        verriere: { name: 'Pluie de verre', dmg: 5, hits: 3 },
+        souffle: { name: 'Souffle du four', dmg: 8, debuff: { brulure: 2 } },
+        sertir: { name: 'Sertir', block: 14, buff: { force: 1 } },
+        cathedrale: { name: 'Cathédrale de lumière', dmg: 22 },
+      },
+      ai: (e, t) => ['verriere', 'souffle', 'sertir', 'cathedrale'][t % 4],
+    },
+    eclat: {
+      name: 'Éclat de la Mère', act: 2, spawnOnly: true, hp: [40, 40], art: 'shard', pal: 'saphir', palB: 'ciel',
+      quote: 'Il cherche l’autre moitié de lui-même.',
+      moves: {
+        tranchant: { name: 'Tranchant', dmg: 7 },
+        reflet: { name: 'Reflet', block: 8, debuff: { fel: 1 } },
+      },
+      ai: (e, t) => (t % 2 ? 'reflet' : 'tranchant'),
     },
 
     // Acte III — le sanctuaire
@@ -839,6 +908,16 @@
       },
       ai: (e, t) => ['heurt', 'taille', 'egide', 'taille'][t % 4],
     },
+    angePlomb: {
+      name: 'L’Ange de plomb', act: 3, elite: true, hp: [118, 124], art: 'leadAngel', pal: 'os', start: { plomb: 2 },
+      quote: 'On l’a coulé dans le métal des vitraux brisés.',
+      moves: {
+        glaive: { name: 'Glaive', dmg: 10 },
+        ailes: { name: 'Ailes pesantes', dmg: 5, hits: 2, debuff: { faib: 1 } },
+        jugement: { name: 'Jugement', dmg: 30 },
+      },
+      ai: (e, t) => ['glaive', 'ailes', 'glaive', 'jugement'][t % 4],
+    },
     seraphin: {
       name: 'Séraphin noir', act: 3, elite: true, hp: [124, 130], art: 'seraph', pal: 'nuit',
       moves: {
@@ -861,9 +940,9 @@
   };
 
   const ACT_POOLS = {
-    1: { normal: ['goule', 'acolyte', 'essaim', 'gargouille', 'ratMoine'], elite: ['chevalierCreux', 'sentinelle'], boss: 'mereOs', name: 'Les Cryptes', pal: 'emeraude' },
-    2: { normal: ['penitent', 'vitrailPossede', 'soeur', 'chien', 'cierge'], elite: ['inquisiteur', 'bourreau'], boss: 'choeur', name: 'La Nef', pal: 'rubis' },
-    3: { normal: ['angeDechu', 'cloche', 'scribe', 'gisant', 'heraut'], elite: ['seraphin', 'reflet'], boss: 'eveque', name: 'Le Sanctuaire', pal: 'saphir' },
+    1: { normal: ['goule', 'acolyte', 'essaim', 'gargouille', 'ratMoine', 'lecteur', 'cierges'], elite: ['chevalierCreux', 'sentinelle'], boss: 'mereOs', name: 'Les Cryptes', pal: 'emeraude' },
+    2: { normal: ['penitent', 'vitrailPossede', 'soeur', 'chien', 'cierge', 'clochePleure'], elite: ['inquisiteur', 'bourreau', 'reliquaireAmb'], boss: 'choeur', bosses: ['choeur', 'mereVerriere'], name: 'La Nef', pal: 'rubis' },
+    3: { normal: ['angeDechu', 'cloche', 'scribe', 'gisant', 'heraut'], elite: ['seraphin', 'reflet', 'angePlomb'], boss: 'eveque', name: 'Le Sanctuaire', pal: 'saphir' },
   };
 
   // ------------------------------------------------------------------ reliques

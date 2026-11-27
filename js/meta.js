@@ -139,7 +139,7 @@
     { id: 'victoire', name: 'La rosace est sauve', desc: 'Remporter une ascension.', check: (e) => e.k === 'run' && e.won, unlock: { pact: 'nuee' } },
     { id: 'pacte1', name: 'Signé à l’encre', desc: 'Remporter une ascension avec au moins un pacte.', check: (e) => e.k === 'run' && e.won && (e.run.pacts || []).length >= 1, unlock: { pact: 'verre' } },
     { id: 'pactes3', name: 'Trois fois parjure', desc: 'Remporter une ascension avec trois pactes.', check: (e) => e.k === 'run' && e.won && (e.run.pacts || []).length >= 3 },
-    { id: 'meute', name: 'Dresseur de meutes', desc: 'Vaincre une meute de trois ennemis.', check: (e) => e.k === 'combat' && e.c.enemies.length >= 3 && !e.c.enemies.some((x) => x.def.elite), unlock: { card: 'tourbillon' } },
+    { id: 'meute', name: 'Dresseur de meutes', desc: 'Vaincre une meute de trois ennemis.', check: (e) => e.k === 'combat' && e.type === 'combat' && e.c.enemies.length >= 3, unlock: { card: 'tourbillon' } },
     { id: 'escorte', name: 'Sans témoin', desc: 'Vaincre une élite et toute son escorte.', check: (e) => e.k === 'combat' && e.type === 'elite' && e.c.enemies.length >= 2, unlock: { card: 'nova' } },
     { id: 'rempart50', name: 'Cathédrale vivante', desc: 'Avoir 50 Armure en même temps.', check: (e) => e.k === 'combat' && e.c.stats.maxBlock >= 50, unlock: { card: 'forteresse' } },
     { id: 'pyromane', name: 'Pyromane', desc: 'Infliger 40 dégâts de Brûlure en un seul combat.', check: (e) => e.k === 'combat' && e.c.stats.burn >= 40, unlock: { card: 'immolation' } },
@@ -227,6 +227,7 @@
   M.recordCombat = function (c, type) {
     const s = M.stats();
     for (const e of c.enemies) {
+      if (e.away && e.spawnedBy) continue; // éclats ressoudés : pas vaincus
       s.enemies[e.id] = (s.enemies[e.id] || 0) + 1;
       s.kills++;
     }

@@ -424,7 +424,7 @@
     const run = R.run;
     const step = run.step;
     const pool = G.ACT_POOLS[run.act];
-    if (step >= R.FLOORS) return [{ type: 'boss', enemy: pool.boss }];
+    if (step >= R.FLOORS) return [{ type: 'boss', enemy: R.bossOf(run.act) }];
     const types = [];
     if (step === 0) types.push('combat', 'combat', rand() < 0.5 ? 'event' : 'combat');
     else if (step === R.FLOORS - 1) {
@@ -459,22 +459,26 @@
         let g = 0;
         do {
           id = pick(list);
-        } while ((used.includes(id) || id === run.lastEnemy) && g++ < 12);
+        } while ((used.includes(id) || id === run.lastEnemy || (step === 0 && G.ENEMIES[id].pack)) && g++ < 12);
         used.push(id);
         d.enemy = id;
         if (type === 'combat' && step > 0 && rand() < 0.4) d.mod = pick(Object.keys(MODS));
         // meutes (2 ou 3 ennemis plus faibles) et élites escortées
         const packAlways = R.effects().some((fx) => fx.packAlways);
-        if (type === 'combat' && step > 0 && (packAlways || rand() < 0.3)) {
+        const loners = pool.normal.filter((x) => !G.ENEMIES[x].pack);
+        if (G.ENEMIES[id].pack) {
+          d.group = [id, id, id];
+          d.minion = 'pack3';
+        } else if (type === 'combat' && step > 0 && (packAlways || rand() < 0.3)) {
           const n = rand() < 0.5 ? 2 : 3;
           d.group = [id];
-          while (d.group.length < n) d.group.push(pick(pool.normal));
+          while (d.group.length < n) d.group.push(pick(loners));
           d.minion = 'pack' + n;
         }
         if (type === 'elite' && rand() < 0.45) {
           d.group = [id];
           const n = rand() < 0.8 ? 1 : 2;
-          for (let k = 0; k < n; k++) d.group.push(pick(pool.normal));
+          for (let k = 0; k < n; k++) d.group.push(pick(loners));
           d.minion = 'escort';
         }
       }
@@ -558,9 +562,19 @@
     R.run.potions.splice(idx, 1);
   };
 
+  /** Gardien de l'acte : choisi une fois pour la partie (certains actes en ont plusieurs). */
+  R.bossOf = function (act) {
+    const run = R.run;
+    const pool = G.ACT_POOLS[act];
+    const list = (pool.bosses || [pool.boss]).filter((id) => G.ENEMIES[id]);
+    run.bosses = run.bosses || {};
+    if (!list.includes(run.bosses[act])) run.bosses[act] = pick(list);
+    return run.bosses[act];
+  };
+
   R.enemyFor = function (type) {
     const pool = G.ACT_POOLS[R.run.act];
-    if (type === 'boss') return pool.boss;
+    if (type === 'boss') return R.bossOf(R.run.act);
     if (type === 'elite') return pick(pool.elite);
     const last = R.run.lastEnemy;
     let id;
@@ -634,8 +648,12 @@
       this.emit = emit || (() => {});
       this.mod = mod || null;
       this.rng = rand;
-      this.spec = list;
-      this.enemies = list.map((s, i) => makeEnemy(s.id, i, s.minion ? MINION[s.minion] : null, mod, run));
+      this.spec = list.map((s) => Object.assign({}, s));
+      this.enemies = list.map((s, i) => {
+        const e = makeEnemy(s.id, i, s.minion ? MINION[s.minion] : null, mod, run);
+        if (s.spawned) e.spawnedBy = s.spawned;
+        return e;
+      });
       this.enemyId = this.enemies[0].id;
       this.target = 0;
       this.p = { hp: run.hp, maxHp: run.maxHp, block: 0, st: {} };
@@ -652,21 +670,24 @@
       this.over = false;
       this.won = false;
       this.hpLowUsed = false;
+      this.lastAtk = null; // dernière attaque jouée (le Lecteur sans yeux la recopie)
+      this.reform = null; // éclats d'une gardienne brisée : { uid, turns }
+      this.bonusRelic = 0; // reliquaire ouvert à temps
       for (const e of this.enemies) this.effectHook('enemySpawn', e);
     }
 
     // ----- ennemis et cible
     get e() {
       const t = this.enemies[this.target];
-      if (t && t.hp > 0) return t;
-      const alive = this.enemies.find((x) => x.hp > 0);
+      if (t && t.hp > 0 && !t.away) return t;
+      const alive = this.enemies.find((x) => x.hp > 0 && !x.away);
       return alive || this.enemies[0];
     }
     alive() {
-      return this.enemies.filter((x) => x.hp > 0);
+      return this.enemies.filter((x) => x.hp > 0 && !x.away);
     }
     setTarget(uid) {
-      const i = this.enemies.findIndex((x) => x.uid === uid && x.hp > 0);
+      const i = this.enemies.findIndex((x) => x.uid === uid && x.hp > 0 && !x.away);
       if (i >= 0) this.target = i;
     }
 
@@ -808,13 +829,86 @@
         this.hpLowUsed = true;
         this.effectHook('hpLow');
       }
+      if (who === 'e' && tgt.hp > 0 && tgt.st.plomb && d > 0 && kind !== 'burn' && kind !== 'self') {
+        tgt.block += tgt.st.plomb;
+        this.emit({ t: 'block', who: 'e', uid: tgt.uid, n: tgt.st.plomb });
+      }
+      if (who === 'e' && tgt.hp > 0 && tgt.def.split && !tgt.splitDone && tgt.hp * 2 <= tgt.maxHp) this.split(tgt);
       if (who === 'e' && tgt.hp <= 0) this.enemyDown(tgt);
       this.checkEnd();
+    }
+
+    /** La gardienne se brise : elle s'efface et laisse place à ses éclats. */
+    split(e) {
+      e.splitDone = true;
+      e.away = true;
+      e.block = 0;
+      const sp = e.def.split;
+      const made = [];
+      for (const id of sp.into) {
+        const idx = this.enemies.length;
+        this.spec.push({ id, spawned: e.uid });
+        const n = makeEnemy(id, idx, null, this.mod, R.run);
+        n.spawnedBy = e.uid;
+        n.hp = n.maxHp = Math.max(8, Math.ceil(e.hp / sp.into.length));
+        n.st.force = e.st.force || 0;
+        this.enemies.push(n);
+        made.push(n);
+        this.effectHook('enemySpawn', n);
+        n.moveKey = n.def.ai(n, n.turn, this.rng);
+        n.intent = n.def.moves[n.moveKey];
+      }
+      this.reform = { uid: e.uid, turns: sp.turns };
+      if (this.enemies[this.target] === e) this.target = this.enemies.indexOf(made[0]);
+      this.emit({ t: 'split', uid: e.uid, ids: made.map((n) => n.uid), turns: sp.turns });
+    }
+    /** Fin du tour ennemi : les éclats encore debout se ressoudent au bout de quelques tours. */
+    tickReform() {
+      const r = this.reform;
+      if (!r || this.over) return;
+      r.turns--;
+      const shards = this.enemies.filter((x) => x.spawnedBy === r.uid && x.hp > 0 && !x.away);
+      if (!shards.length) {
+        this.reform = null;
+        return;
+      }
+      if (r.turns > 0) return;
+      const m = this.enemies.find((x) => x.uid === r.uid);
+      const sum = shards.reduce((t, x) => t + x.hp, 0);
+      shards.forEach((x) => {
+        x.away = true;
+      });
+      m.away = false;
+      m.hp = Math.min(m.maxHp, sum + 10);
+      m.block = 0;
+      this.reform = null;
+      this.target = this.enemies.indexOf(m);
+      this.emit({ t: 'reform', uid: m.uid, from: shards.map((x) => x.uid) });
+    }
+    /** Le Lecteur sans yeux annonce la copie de ta dernière attaque. */
+    refreshCopy() {
+      for (const e of this.alive()) {
+        const m = e.def.moves[e.moveKey];
+        if (!m || !m.copy) continue;
+        const la = this.lastAtk;
+        const dmg = Math.max(m.min || 3, la ? Math.round(la.dmg * m.copy) : 0);
+        e.intent = Object.assign({}, m, { dmg, name: la && G.CARDS[la.id] ? `${m.name} : ${G.CARDS[la.id].name}` : m.name });
+      }
     }
     enemyDown(e) {
       if (this.killed.includes(e)) return;
       this.killed.push(e);
       this.emit({ t: 'enemyDeath', uid: e.uid, id: e.id });
+      if (e.def.quickRelic && (e.st.scelle || 0) > 0) {
+        this.bonusRelic++;
+        this.emit({ t: 'opened', uid: e.uid });
+      }
+      for (const o of this.alive()) {
+        if (o.st.veillee) {
+          o.st.force = (o.st.force || 0) + o.st.veillee;
+          this.emit({ t: 'status', who: 'e', uid: o.uid, st: 'force', n: o.st.veillee });
+        }
+      }
       this.effectHook('enemyKilled', e);
     }
     checkEnd() {
@@ -853,6 +947,15 @@
         this.payHp(p.st.pacte);
         this.gainInk(1);
       }
+      if (p.st.brulure > 0 && !this.over) {
+        const b = p.st.brulure;
+        const dmg = Math.min(p.hp, b);
+        p.hp -= dmg;
+        this.stats.hpLost += dmg;
+        p.st.brulure = b - 1;
+        this.emit({ t: 'hit', who: 'p', dmg, blocked: 0, kind: 'burn', idx: 0 });
+        this.checkEnd();
+      }
       if (this.over) return;
       this.draw(Math.max(1, R.drawPerTurn() + (p.st.vigilance || 0) - this.hand.length * 0));
       this.effectHook('turnStart');
@@ -866,6 +969,7 @@
         e.moveKey = key;
         e.intent = e.def.moves[key];
       }
+      this.refreshCopy();
     }
     chooseIntent() {
       this.chooseIntents();
@@ -889,6 +993,7 @@
       const hp = G.cardHp(card);
       if (hp) this.payHp(hp);
       const vals = G.cardVals(card);
+      if (def.type === 'atk' && vals.d) this.lastAtk = { id: card.id, dmg: vals.d };
       def.play(this, vals);
       if (this.p.st.echo && this.stats.playedTurn === 0 && def.type !== 'pow' && !this.over) {
         this.emit({ t: 'echo', card });
@@ -905,6 +1010,7 @@
         this.emit({ t: 'exhaust', card });
       } else this.discard.push(card);
       if (!this.over) this.effectHook('cardPlayed', card);
+      this.refreshCopy();
       return true;
     }
 
@@ -928,9 +1034,10 @@
     enemyTurn() {
       if (this.over) return;
       for (const e of this.enemies) {
-        if (e.hp <= 0 || this.over) continue;
+        if (e.hp <= 0 || e.away || this.over) continue;
         this.enemyAct(e);
       }
+      this.tickReform();
     }
 
     enemyAct(e) {
@@ -978,10 +1085,15 @@
         this.emit({ t: 'steal', n });
       }
       if (m.curse) {
-        for (let i = 0; i < (m.n || 1); i++) this.discard.push(newCard(m.curse));
-        this.emit({ t: 'curse', id: m.curse, n: m.n || 1 });
+        for (let i = 0; i < (m.n || 1); i++) {
+          const k = newCard(m.curse);
+          if (m.curseTo === 'pile') this.pile.splice(Math.floor(this.rng() * (this.pile.length + 1)), 0, k);
+          else this.discard.push(k);
+        }
+        this.emit({ t: 'curse', id: m.curse, n: m.n || 1, to: m.curseTo || 'discard' });
       }
       if (e.st.rituel) e.st.force = (e.st.force || 0) + e.st.rituel;
+      if (e.st.scelle) e.st.scelle--;
       this.decay(e);
       e.turn++;
     }
@@ -994,6 +1106,8 @@
       s.p = Object.assign({}, this.p, { st: Object.assign({}, this.p.st) });
       s.enemies = this.enemies.map((e) => Object.assign({}, e, { st: Object.assign({}, e.st) }));
       s.killed = [];
+      s.spec = this.spec.slice();
+      s.reform = this.reform && Object.assign({}, this.reform);
       s.pile = this.pile.slice();
       s.hand = this.hand.slice();
       s.discard = this.discard.slice();
@@ -1080,7 +1194,7 @@
       mod: this.mod,
       target: this.target,
       p: { hp: this.p.hp, maxHp: this.p.maxHp, block: this.p.block, st: Object.assign({}, this.p.st) },
-      enemies: this.enemies.map((e) => ({ hp: e.hp, maxHp: e.maxHp, block: e.block, st: Object.assign({}, e.st), turn: e.turn, moveKey: e.moveKey })),
+      enemies: this.enemies.map((e) => ({ hp: e.hp, maxHp: e.maxHp, block: e.block, st: Object.assign({}, e.st), turn: e.turn, moveKey: e.moveKey, away: e.away || undefined, splitDone: e.splitDone || undefined })),
       killedIdx: this.killed.map((e) => this.enemies.indexOf(e)),
       pile: strip(this.pile),
       hand: strip(this.hand),
@@ -1092,6 +1206,9 @@
       hidden: this.hidden,
       stolen: this.stolen,
       hpLowUsed: this.hpLowUsed,
+      lastAtk: this.lastAtk,
+      reform: this.reform,
+      bonusRelic: this.bonusRelic,
     };
   };
   Combat.restore = function (snap, emit) {
@@ -1104,7 +1221,7 @@
     c.enemies.forEach((e, i) => {
       const s = enemies[i];
       if (!s) return;
-      Object.assign(e, { hp: s.hp, maxHp: s.maxHp, block: s.block, st: Object.assign({}, s.st), turn: s.turn, moveKey: s.moveKey });
+      Object.assign(e, { hp: s.hp, maxHp: s.maxHp, block: s.block, st: Object.assign({}, s.st), turn: s.turn, moveKey: s.moveKey, away: !!s.away, splitDone: !!s.splitDone });
       e.intent = e.def.moves[s.moveKey] || null;
     });
     c.killed = (snap.killedIdx || []).map((i) => c.enemies[i]).filter(Boolean);
@@ -1120,6 +1237,10 @@
     c.hidden = snap.hidden;
     c.stolen = snap.stolen || 0;
     c.hpLowUsed = snap.hpLowUsed;
+    c.lastAtk = snap.lastAtk || null;
+    c.reform = snap.reform ? Object.assign({}, snap.reform) : null;
+    c.bonusRelic = snap.bonusRelic || 0;
+    c.refreshCopy();
     return c;
   };
 

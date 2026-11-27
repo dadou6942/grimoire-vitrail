@@ -92,13 +92,21 @@ function runOnce(G) {
     const plan = ['combat', 'combat', Math.random() < 0.5 ? 'event' : 'combat', 'elite', 'altar', 'boss'];
     for (const step of plan) {
       if (step === 'combat' || step === 'elite' || step === 'boss') {
-        let id = step === 'boss' ? pool.boss : step === 'elite' ? G.pick(pool.elite) : G.pick(pool.normal);
+        const only = process.env.ONLY; // ONLY=id : force cet ennemi (ou ce gardien) quand il appartient à l'acte
+        const loners = pool.normal.filter((x) => !G.ENEMIES[x].pack);
+        let id = step === 'boss' ? R.bossOf(act) : step === 'elite' ? G.pick(pool.elite) : G.pick(pool.normal);
+        if (only && G.ENEMIES[only] && G.ENEMIES[only].act === act) {
+          const d = G.ENEMIES[only];
+          if ((step === 'boss' && d.boss) || (step === 'elite' && d.elite) || (step === 'combat' && !d.boss && !d.elite)) id = only;
+        }
         // meutes et escortes, comme dans le jeu
-        if (step === 'combat' && Math.random() < GROUPS * 0.3) {
+        if (step === 'combat' && G.ENEMIES[id].pack) {
+          id = [0, 1, 2].map(() => ({ id, minion: 'pack3' }));
+        } else if (step === 'combat' && Math.random() < GROUPS * 0.3) {
           const n = Math.random() < 0.5 ? 2 : 3;
-          id = Array.from({ length: n }, () => ({ id: G.pick(pool.normal), minion: 'pack' + n }));
+          id = Array.from({ length: n }, () => ({ id: G.pick(loners), minion: 'pack' + n }));
         } else if (step === 'elite' && Math.random() < GROUPS * 0.45) {
-          id = [{ id }].concat(Array.from({ length: Math.random() < 0.8 ? 1 : 2 }, () => ({ id: G.pick(pool.normal), minion: 'escort' })));
+          id = [{ id }].concat(Array.from({ length: Math.random() < 0.8 ? 1 : 2 }, () => ({ id: G.pick(loners), minion: 'escort' })));
         }
         if (!fight(G, id)) return { won: false, act, step };
         R.gainGold(step === 'elite' ? 30 : step === 'boss' ? 60 : 15);

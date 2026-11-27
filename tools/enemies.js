@@ -12,7 +12,7 @@ for (const id of Object.keys(G.ENEMIES)) {
     R.newRun('chevalier');
     R.run.hp = 999;
     R.run.maxHp = 999;
-    const c = new G.Combat(id);
+    const c = new G.Combat(G.ENEMIES[id].pack ? [0, 1, 2].map(() => ({ id, minion: 'pack3' })) : id);
     c.start();
     let t = 0;
     while (!c.over && t++ < 60) {

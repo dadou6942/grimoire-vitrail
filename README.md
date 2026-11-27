@@ -38,8 +38,8 @@ Le dossier se publie tel quel sur GitHub Pages (Settings → Pages → branche `
 - Tu portes **3 fioles** au plus à ta ceinture. Touche une fiole pour la boire.
 - Après chaque victoire, tu choisis une carte (parfois déjà améliorée). Les élites donnent une relique, les gardiens une relique puissante.
   Tu récupères tous tes PV entre deux actes.
-- Un guide explique les gestes lors de la première partie. Le menu ☰ permet de revoir les conseils, d'accélérer les animations,
-  de sauvegarder et quitter, ou d'abandonner.
+- Un guide explique les gestes lors de la première partie. Le menu ☰ ouvre un pupitre en bas de l'écran : paquet, animations,
+  conseils, compte, sauvegarder et quitter, ou abandonner.
 
 ## Sauvegardes et comptes
 
@@ -60,12 +60,18 @@ Le dossier se publie tel quel sur GitHub Pages (Settings → Pages → branche `
   - **le Saigneur** (23 cartes) : il **paie en PV** des coups dévastateurs et vole la vie.
 - **Progression entre les parties** : la Sorcière s'éveille après ton premier gardien vaincu, le Saigneur après le troisième.
   Chaque victoire débloque le **palier** suivant (5 paliers de difficulté cumulables) pour le héros qui l'a remportée.
-- **24 ennemis** : 15 ennemis, 6 élites et 3 gardiens, du Rat-moine voleur à Aldric, l'Évêque de verre.
+- **31 ennemis** : 18 ennemis, 8 élites, 4 gardiens et l'Éclat de la Mère, du Rat-moine voleur à Aldric, l'Évêque de verre. Parmi eux :
+  - **le Lecteur sans yeux** recopie ta dernière attaque ; **l'Essaim de cierges** vient toujours à trois et te brûle ;
+  - **la Cloche-qui-pleure** glisse des « Échos » injouables dans ta pioche ;
+  - **le Reliquaire ambulant** vole ton or, mais rend une relique de plus s'il tombe vite ;
+  - **l'Ange de plomb** se cuirasse à chaque coup reçu ;
+  - **la Mère-Verrière**, gardienne de l'acte II une partie sur deux, se brise en deux éclats qui se ressoudent s'ils survivent trois tours.
 - **26 reliques**, **8 fioles** et **12 événements**.
 
 ## Progression (Grimoire)
 
-Le bouton **Grimoire** de l'écran titre réunit tout ce qui suit d'une partie à l'autre.
+Le bouton **Grimoire** de l'écran titre réunit tout ce qui suit d'une partie à l'autre ; on passe d'une page à l'autre
+par les quatre médaillons de verre en bas de l'écran.
 
 - **Pactes** : avant de partir, signe jusqu'à 3 pactes (9 en tout). Chacun ajoute une contrainte
   (ennemis plus forts, moins d'or, pas de soin à l'autel…) et augmente l'expérience gagnée.

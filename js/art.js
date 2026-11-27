@@ -950,6 +950,138 @@
     poly(x, [74, 44, 92, 20, 86, 50], B);
   };
 
+  // ---- ennemis de la version 1.6
+  const rr = (x, a, b, w, h, r, col) => {
+    x.fillStyle = col;
+    x.beginPath();
+    x.roundRect(a, b, w, h, r);
+    x.fill();
+  };
+  const path = (x, col, fn) => {
+    x.fillStyle = col;
+    x.beginPath();
+    fn();
+    x.closePath();
+    x.fill();
+  };
+  F.reader = {
+    draw: (x) => {
+      path(x, A, () => { x.moveTo(38, 46); x.lineTo(62, 46); x.quadraticCurveTo(74, 80, 82, 116); x.lineTo(18, 116); x.quadraticCurveTo(26, 80, 38, 46); });
+      path(x, B, () => { x.moveTo(50, 12); x.quadraticCurveTo(71, 20, 69, 54); x.lineTo(31, 54); x.quadraticCurveTo(29, 20, 50, 12); });
+      ell(x, 50, 38, 9.5, 12, '#000000');
+      rr(x, 39, 33, 22, 5, 2, C);
+      poly(x, [24, 66, 50, 73, 50, 94, 24, 87], B);
+      poly(x, [50, 73, 76, 66, 76, 87, 50, 94], B);
+      poly(x, [28, 69.5, 48, 75, 48, 90, 28, 84.5], C);
+      poly(x, [52, 75, 72, 69.5, 72, 84.5, 52, 90], C);
+    },
+    paint: (x) => {
+      line(x, [31, 74, 45, 77.5]); line(x, [31, 78, 45, 81.5]); line(x, [31, 82, 41, 84.5]);
+      line(x, [55, 77.5, 69, 74]); line(x, [55, 81.5, 69, 78]); line(x, [55, 85.5, 64, 83]);
+      line(x, [42, 98, 40, 114]); line(x, [58, 98, 60, 114]); line(x, [50, 46, 50, 22]);
+    },
+  };
+  F.candles = {
+    draw: (x) => {
+      const candle = (cx, top, w, h, s) => {
+        rr(x, cx - w / 2, top, w, h, 3, A);
+        const d = [];
+        for (let i = 0; i <= 6; i++) d.push(cx - w / 2 + (w * i) / 6, top + (i % 2 ? 8 * s + (i % 3) * 3 * s : 3 * s));
+        poly(x, [cx - w / 2, top - 1, cx + w / 2, top - 1].concat(d.reverse()), B);
+        path(x, C, () => { x.moveTo(cx, top - 26 * s); x.quadraticCurveTo(cx + 9 * s, top - 10 * s, cx, top - 4 * s); x.quadraticCurveTo(cx - 9 * s, top - 10 * s, cx, top - 26 * s); });
+        rr(x, cx - 1, top - 5 * s, 2, 5 * s, 0.5, '#000000');
+      };
+      candle(18, 76, 14, 36, 0.6);
+      candle(82, 72, 14, 40, 0.6);
+      candle(50, 44, 28, 68, 1);
+      ell(x, 44, 70, 3, 4.2, '#000000');
+      ell(x, 56, 70, 3, 4.2, '#000000');
+      ell(x, 50, 86, 4.5, 3.2, '#000000');
+      rr(x, 6, 108, 88, 8, 3, B);
+    },
+    paint: (x) => { line(x, [40, 64, 47, 66]); line(x, [60, 64, 53, 66]); },
+  };
+  F.weepingBell = {
+    draw: (x) => {
+      rr(x, 32, 4, 36, 8, 3, B);
+      rr(x, 46, 10, 8, 8, 1, B);
+      path(x, A, () => { x.moveTo(40, 16); x.quadraticCurveTo(27, 18, 27, 46); x.quadraticCurveTo(27, 78, 12, 94); x.lineTo(88, 94); x.quadraticCurveTo(73, 78, 73, 46); x.quadraticCurveTo(73, 18, 60, 16); });
+      rr(x, 29, 30, 42, 6, 2, B);
+      rr(x, 8, 91, 84, 9, 4, B);
+      ell(x, 41, 52, 5, 2.6, C, 0.25);
+      ell(x, 59, 52, 5, 2.6, C, -0.25);
+      ell(x, 50, 72, 6, 8, '#000000');
+      rr(x, 48, 99, 4, 6, 1, B);
+      circ(x, 50, 110, 7, C);
+      ell(x, 39, 64, 2, 3.6, C);
+      ell(x, 61, 67, 2, 3.6, C);
+      ell(x, 37, 82, 2, 3.6, C);
+      ell(x, 64, 84, 2, 3.6, C);
+    },
+    paint: (x) => { line(x, [36, 47, 46, 49]); line(x, [64, 47, 54, 49]); line(x, [33, 42, 31, 76]); line(x, [67, 42, 69, 76]); },
+  };
+  F.reliquary = {
+    draw: (x) => {
+      poly(x, [28, 84, 18, 116, 23, 116, 35, 84], B);
+      poly(x, [72, 84, 82, 116, 77, 116, 65, 84], B);
+      poly(x, [42, 86, 38, 116, 43, 116, 47, 86], B);
+      poly(x, [58, 86, 62, 116, 57, 116, 53, 86], B);
+      rr(x, 18, 48, 64, 40, 4, A);
+      path(x, B, () => { x.moveTo(16, 51); x.quadraticCurveTo(50, 14, 84, 51); });
+      poly(x, [50, 18, 46, 30, 54, 30], C);
+      poly(x, [30, 26, 31, 38, 38, 33], C);
+      poly(x, [70, 26, 69, 38, 62, 33], C);
+      rr(x, 18, 58, 64, 4, 1, B);
+      circ(x, 22, 52, 3, C); circ(x, 78, 52, 3, C); circ(x, 22, 84, 3, C); circ(x, 78, 84, 3, C);
+      ell(x, 50, 73, 10, 7.5, C);
+      ell(x, 50, 73, 3, 6.5, '#000000');
+      circ(x, 30, 100, 3.2, C); circ(x, 66, 104, 3.2, C); circ(x, 50, 110, 2.6, C);
+    },
+    paint: (x) => { line(x, [24, 44, 76, 44]); line(x, [40, 66, 40, 86]); line(x, [60, 66, 60, 86]); },
+  };
+  F.leadAngel = {
+    draw: (x) => {
+      wings(x, 50, 54, 46, 5, B, A, true);
+      path(x, A, () => { x.moveTo(41, 48); x.lineTo(59, 48); x.lineTo(72, 116); x.lineTo(28, 116); });
+      path(x, C, () => { x.arc(50, 28, 17, 0, Math.PI * 2); x.arc(50, 28, 13.5, 0, Math.PI * 2, true); });
+      circ(x, 50, 32, 10, B);
+      rr(x, 43.5, 31, 5, 1.8, 1, '#000000');
+      rr(x, 51.5, 31, 5, 1.8, 1, '#000000');
+      rr(x, 48, 62, 4, 50, 1, C);
+      rr(x, 39, 58, 22, 4.5, 2, B);
+      circ(x, 50, 54, 3.2, B);
+    },
+    paint: (x) => { line(x, [40, 70, 36, 112]); line(x, [60, 70, 64, 112]); line(x, [46, 38, 50, 40, 54, 38]); },
+  };
+  F.glassMother = {
+    draw: (x) => {
+      path(x, A, () => { x.moveTo(42, 48); x.lineTo(58, 48); x.lineTo(80, 116); x.lineTo(20, 116); });
+      poly(x, [50, 52, 30, 116, 42, 116], B);
+      poly(x, [50, 52, 58, 116, 70, 116], B);
+      poly(x, [46, 70, 38, 96, 50, 92], C);
+      poly(x, [42, 52, 14, 34, 18, 30, 44, 46], A);
+      poly(x, [58, 52, 86, 34, 82, 30, 56, 46], A);
+      poly(x, [8, 16, 18, 34, 6, 32], C);
+      poly(x, [92, 16, 82, 34, 94, 32], C);
+      ell(x, 50, 36, 9, 11.5, B);
+      ell(x, 46, 36, 2.2, 1.5, C);
+      ell(x, 54, 36, 2.2, 1.5, C);
+      poly(x, [37, 27, 41, 9, 45, 23, 50, 4, 55, 23, 59, 9, 63, 27], C);
+    },
+    paint: (x) => { line(x, [50, 58, 46, 72, 53, 84, 48, 100, 52, 112]); line(x, [47, 42, 50, 44, 53, 42]); line(x, [62, 60, 66, 74]); },
+  };
+  F.shard = {
+    draw: (x) => {
+      poly(x, [50, 8, 78, 60, 62, 112, 30, 104, 22, 50], A);
+      poly(x, [50, 8, 62, 112, 46, 70], B);
+      poly(x, [22, 50, 46, 70, 30, 104], B);
+      ell(x, 42, 52, 3, 2, C);
+      ell(x, 56, 50, 3, 2, C);
+      poly(x, [54, 24, 60, 36, 52, 34], C);
+    },
+    paint: (x) => { line(x, [36, 30, 44, 46]); line(x, [60, 70, 66, 92]); },
+  };
+
   // ------------------------------------------------------------------ rendu
   const cache = {};
 
@@ -1251,7 +1383,7 @@
       const actPal = { 1: 'emeraude', 2: 'rubis', 3: 'saphir' }[def.act];
       return url('enemy:' + id, {
         w: Math.round(200 * DPR), h: Math.round(250 * DPR), seed: seedOf(id), motif: def.art, figure: true,
-        pal: 'nuit', a: def.pal, b: def.pal === 'os' ? 'or' : 'os', c: def.boss ? 'braise' : 'sang', cell: 30,
+        pal: 'nuit', a: def.pal, b: def.palB || (def.pal === 'os' ? 'or' : 'os'), c: def.boss ? 'braise' : 'sang', cell: 30,
         layout: 'radial', center: [0.5, 0.42], shape: 'arch', light: [0.5, 0.35], halo: true, bgAlt: actPal,
       });
     },

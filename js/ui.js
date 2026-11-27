@@ -27,9 +27,19 @@
     candle: 'M10 9h4v13h-4zM12 1c1.5 2 2.5 3.5 2.5 5a2.5 2.5 0 01-5 0C9.5 4.5 10.5 3 12 1z',
     broken: 'M4 20l7-7-2-2 4-4 2 2 5-5v4l-3 3 2 2-6 6-2-2-5 5z',
     menu: 'M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z',
+    bulb: 'M12 2a7 7 0 00-4 12.7V17h8v-2.3A7 7 0 0012 2zM9 19h6v2H9z',
+    speed: 'M3 5l8 7-8 7zm9 0l8 7-8 7z',
+    user: 'M12 3a4.5 4.5 0 110 9 4.5 4.5 0 010-9zM4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z',
+    door: 'M6 2h12v20h-2V4H8v18H6zm7 9h2v2h-2z',
+    flag: 'M5 2h2v20H5zm3 1h11l-3 4.5 3 4.5H8z',
+    tree: 'M12 2a3 3 0 110 6 3 3 0 010-6zM5 16a3 3 0 110 6 3 3 0 010-6zm14 0a3 3 0 110 6 3 3 0 010-6zM11 8h2v4h5v4h-2v-2H8v2H6v-4h5z',
+    grid: 'M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z',
+    trophy: 'M7 2h10v2h4c0 4-2 6-4.5 6.5A5 5 0 0113 14v4h4v3H7v-3h4v-4a5 5 0 01-3.5-3.5C5 10 3 8 3 4h4zm0 4H5c.3 1.6 1 2.6 2 3.2zm10 0v3.2c1-.6 1.7-1.6 2-3.2z',
+    chart: 'M3 20h18v2H3zM5 12h3v7H5zm5.5-6h3v13h-3zM16 9h3v10h-3z',
+    close: 'M6 4.6l6 6 6-6L19.4 6l-6 6 6 6-1.4 1.4-6-6-6 6L4.6 18l6-6-6-6z',
   };
   const icon = (n, cls) => `<svg viewBox="0 0 24 24" class="${cls || ''}" aria-hidden="true"><path d="${ICON[n]}"/></svg>`;
-  const ST_ICON = { force: 'up', faib: 'broken', fel: 'crack', epines: 'thorns', epinesP: 'thorns', rempart: 'tower', martyre: 'heart', veille: 'candle', rituel: 'flame', banniere: 'up', vigilance: 'eye', brulure: 'flame', braise: 'flame', brasier: 'flame', echo: 'eye', soif: 'drop', pacte: 'drop', calice: 'heart' };
+  const ST_ICON = { force: 'up', faib: 'broken', fel: 'crack', epines: 'thorns', epinesP: 'thorns', rempart: 'tower', martyre: 'heart', veille: 'candle', rituel: 'flame', banniere: 'up', vigilance: 'eye', brulure: 'flame', braise: 'flame', brasier: 'flame', echo: 'eye', soif: 'drop', pacte: 'drop', calice: 'heart', veillee: 'candle', plomb: 'shield', scelle: 'coin' };
   const TYPE_NAME = { atk: 'Attaque', skl: 'Technique', pow: 'Pouvoir', curse: 'Malédiction' };
   const KEYWORDS = {
     Armure: 'Absorbe les dégâts. Disparaît au début de ton tour.',
@@ -309,19 +319,33 @@
   // ---- menu de pause
   function openMenu() {
     const ov = $('#menu');
+    const tile = (id, ic, label, sub) => `<button class="tile" id="${id}">${icon(ic)}<span class="t">${label}</span>${sub ? `<span class="s">${sub}</span>` : ''}</button>`;
+    ov.classList.add('sheet-ov');
     ov.innerHTML =
-      `<div class="inner menu-inner"><div class="panel-head"><h2>Pause</h2><p>${R.run ? whereText() + ` · étage ${Math.min(R.run.step + 1, R.FLOORS + 1)}` : ''}</p></div>` +
-      `<div class="menu">` +
+      `<div class="sheet" role="dialog" aria-label="Pause"><div class="handle"></div>` +
+      `<div class="sheet-head"><h2>Pause</h2><span>${R.run ? whereText() + ` · étage ${Math.min(R.run.step + 1, R.FLOORS + 1)}` : ''}</span></div>` +
+      `<div class="tiles">` +
+      (R.run ? tile('m-deck', 'deck', 'Mon paquet', `${R.run.deck.length} cartes`) : '') +
+      tile('m-speed', 'speed', 'Animations', UI.settings.fast ? 'rapides' : 'normales') +
+      tile('m-tuto', 'bulb', 'Conseils', 'les revoir') +
+      tile('m-account', 'user', 'Compte', 'et sauvegarde') +
+      `</div>` +
       `<button class="btn gold" id="m-resume">Reprendre</button>` +
-      `<button class="btn" id="m-speed">Animations : ${UI.settings.fast ? 'rapides' : 'normales'}</button>` +
-      `<button class="btn" id="m-tuto">Revoir les conseils</button>` +
-      `<button class="btn" id="m-account">Compte et sauvegarde</button>` +
-      `<button class="btn ghost" id="m-title">Sauvegarder et quitter</button>` +
-      `<button class="btn ghost" id="m-abandon">Abandonner la partie</button>` +
-      `</div></div>`;
+      `<div class="sheet-foot"><button class="btn ghost sm" id="m-title">Sauvegarder et quitter</button><button class="quit" id="m-abandon">Abandonner</button></div>` +
+      `</div>`;
     ov.classList.add('show');
     const close = () => ov.classList.toggle('show', false);
     $('#m-resume').onclick = close;
+    ov.onclick = (e) => {
+      if (e.target === ov) close();
+    };
+    const deckBtn = $('#m-deck');
+    if (deckBtn) {
+      deckBtn.onclick = () => {
+        close();
+        openDeck();
+      };
+    }
     $('#m-speed').onclick = () => {
       UI.settings.fast = !UI.settings.fast;
       saveSettings();
@@ -352,6 +376,7 @@
       if (!armed) {
         armed = true;
         e.currentTarget.textContent = 'Toucher encore pour abandonner';
+        e.currentTarget.classList.add('armed');
         return;
       }
       close();
@@ -812,6 +837,33 @@
     );
   }
 
+  /** Construit les vitraux des ennemis présents (refait quand la gardienne se brise ou se ressoude). */
+  function mountFoes() {
+    const c = C.combat;
+    const box = $('#combat .foes');
+    if (!c || !box) return;
+    const shown = c.enemies.filter((e) => !e.away);
+    box.className = 'foes n' + shown.length;
+    box.innerHTML = shown.map((e, i) => foeHTML(e, i, shown.length, C.mod)).join('');
+    // toucher un ennemi le prend pour cible
+    $$('.foe', box).forEach((f) => {
+      f.addEventListener('click', (ev) => {
+        if (ev.target.closest('[data-tip]') || C.combat.alive().length < 2) return;
+        C.combat.setTarget(f.dataset.uid);
+        renderCombat();
+        if (selectedUid) {
+          const card = C.combat.hand.find((k) => k.uid === selectedUid);
+          if (card) showPlayPreview(card);
+        }
+      });
+    });
+    // ennemis déjà tombés
+    c.killed.forEach((e) => {
+      const f = $(foeSel(e.uid));
+      if (f) f.classList.add('dead');
+    });
+  }
+
   function startCombat(spec, type, mod, resume) {
     C.type = type;
     C.mod = mod || null;
@@ -834,7 +886,7 @@
       `<div class="enemy-zone">` +
       `<div class="move-banner"></div>` +
       (n > 1 && mod ? `<div class="group-mod"><span class="e-mod" data-tip="intent:" data-title="${G.MODS[mod].name}" data-text="${G.MODS[mod].desc}">${G.MODS[mod].name}</span></div>` : '') +
-      `<div class="foes n${n}">${c.enemies.map((e, i) => foeHTML(e, i, n, mod)).join('')}</div>` +
+      `<div class="foes"></div>` +
       `</div>` +
       `<div class="controls">` +
       `<div class="ink" aria-label="Encre"></div>` +
@@ -843,30 +895,14 @@
       `<div class="statuses p-st"></div>` +
       `<div class="piles"><button class="pile b-draw">${icon('deck')}<b class="n-draw">0</b></button><button class="pile b-disc">${icon('discard')}<b class="n-disc">0</b></button></div>` +
       `</div>` +
-      `<button class="btn blue end-turn">Fin du tour</button>` +
+      `<button class="btn gold end-turn">Fin du tour</button>` +
       `</div>` +
       `<div class="hand"></div><div class="drop-hint">Relâche pour jouer</div>`;
     bindTopbar(el);
     $('.end-turn', el).onclick = () => endTurn();
     $('.b-draw', el).onclick = () => openPile('Pioche', C.combat.pile, true);
     $('.b-disc', el).onclick = () => openPile('Défausse', C.combat.discard);
-    // toucher un ennemi le prend pour cible
-    $$('.foe', el).forEach((f) => {
-      f.addEventListener('click', (ev) => {
-        if (ev.target.closest('[data-tip]') || C.combat.enemies.length < 2) return;
-        C.combat.setTarget(f.dataset.uid);
-        renderCombat();
-        if (selectedUid) {
-          const card = C.combat.hand.find((k) => k.uid === selectedUid);
-          if (card) showPlayPreview(card);
-        }
-      });
-    });
-    // ennemis déjà tombés (reprise d'un combat)
-    c.killed.forEach((e) => {
-      const f = $(foeSel(e.uid));
-      if (f) f.classList.add('dead');
-    });
+    mountFoes();
     if (resume && resume.snap) {
       if (resume.phase === 'ended') c.enemyTurn();
       if ((resume.phase === 'ended' || resume.phase === 'enemy') && !c.over) c.startTurn();
@@ -944,7 +980,7 @@
     const el = $('#combat');
     R.run.hp = c.p.hp;
     refreshTopbar(el);
-    const multi = c.enemies.length > 1;
+    const multi = c.enemies.filter((e) => !e.away).length > 1;
     const target = c.e;
     for (const e of c.enemies) {
       const f = $(foeSel(e.uid));
@@ -985,7 +1021,8 @@
     if (m.block) parts.push(`Se protège (${m.block} Armure).`);
     if (m.buff) parts.push('Se renforce : ' + Object.keys(m.buff).map((k) => `${G.STATUS[k].name} +${m.buff[k]}`).join(', ') + '.');
     if (m.debuff) parts.push('T’affaiblit : ' + Object.keys(m.debuff).map((k) => `${G.STATUS[k].name} ${m.debuff[k]}`).join(', ') + '.');
-    if (m.curse) parts.push(`Ajoute ${m.n || 1} « ${G.CARDS[m.curse].name} » à ta défausse.`);
+    if (m.copy) parts.push('Recopie la dernière attaque que tu as jouée, à moitié de sa force.');
+    if (m.curse) parts.push(`Ajoute ${m.n || 1} « ${G.CARDS[m.curse].name} » à ta ${m.curseTo === 'pile' ? 'pioche' : 'défausse'}.`);
     return parts.join(' ');
   }
 
@@ -1457,7 +1494,32 @@
         break;
       }
       case 'curse':
-        setTimeout(() => UI.toast(`${ev.n} « ${G.CARDS[ev.id].name} » ajouté${ev.n > 1 ? 's' : ''} à ta défausse`), 500);
+        setTimeout(() => UI.toast(`${ev.n} « ${G.CARDS[ev.id].name} » ajouté${ev.n > 1 ? 's' : ''} à ta ${ev.to === 'pile' ? 'pioche' : 'défausse'}`), 500);
+        break;
+      case 'split':
+        setTimeout(() => {
+          shatterFoe(ev.uid);
+          banner('Elle se brise !');
+          setTimeout(() => {
+            if (G.Meta) C.combat.enemies.forEach((e) => G.Meta.see('e', e.id));
+            mountFoes();
+            renderCombat();
+            UI.toast(`Abats les deux éclats en ${ev.turns} tours, ou ils se ressoudent.`);
+          }, T(650));
+        }, Math.max(0, delay) + 150);
+        break;
+      case 'reform':
+        setTimeout(() => {
+          ev.from.forEach((u) => shatterFoe(u));
+          banner('Les éclats se ressoudent');
+          setTimeout(() => {
+            mountFoes();
+            renderCombat();
+          }, T(650));
+        }, Math.max(0, delay) + 150);
+        break;
+      case 'opened':
+        setTimeout(() => UI.toast('Le reliquaire s’ouvre : une relique de plus t’attend !'), 600);
         break;
       case 'enemyMove':
         banner(ev.move.name);
@@ -1503,14 +1565,15 @@
     const c = C.combat;
     c.finish();
     const run = R.run;
-    run.stats.kills += c.enemies.length;
+    run.stats.kills += c.enemies.filter((e) => !(e.away && e.spawnedBy)).length;
     for (const fx of R.effects()) if (fx.combatEnd) fx.combatEnd(run);
     const type = C.type;
     // statistiques et succès du combat
     if (G.Meta) G.Meta.recordCombat(c, type);
     const group = c.enemies.length > 1;
     const mod = C.mod ? G.MODS[C.mod] : null;
-    const reward = { gold: 0, relic: null, bossRelics: null, cards: null, potion: null, stolen: c.stolen };
+    const reward = { gold: 0, relic: null, bossRelics: null, cards: null, potion: null, stolen: c.stolen, bonusRelic: null };
+    if (c.bonusRelic) reward.bonusRelic = R.gainRandomRelicSilent();
     if (c.stolen) run.gold += c.stolen;
     const gm = mod && mod.gold ? mod.gold : 1;
     if (type === 'combat') reward.gold = R.gainGold(Math.round((14 + Math.floor(Math.random() * 8)) * gm * (group ? 1.3 : 1)));
@@ -1566,6 +1629,7 @@
       (rw.gold ? `<div class="loot">${icon('coin').replace('<svg', '<svg style="width:40px;height:40px;fill:#d9ad52"')}<div><div class="t">${rw.gold} or</div><div class="d">Ajouté à ta bourse.</div></div></div>` : '') +
       (rw.stolen ? `<div class="loot"><div class="loot-ico">↩</div><div><div class="t">${rw.stolen} or récupérés</div><div class="d">Le voleur rend ce qu’il t’a pris.</div></div></div>` : '') +
       (rw.relic ? `<div class="loot"><img alt="" src="${G.Art.relic(rw.relic)}"><div><div class="t">${G.RELICS[rw.relic].name}</div><div class="d">${G.RELICS[rw.relic].desc}</div></div></div>` : '') +
+      (rw.bonusRelic ? `<div class="loot"><img alt="" src="${G.Art.relic(rw.bonusRelic)}"><div><div class="t">${G.RELICS[rw.bonusRelic].name}</div><div class="d">Le reliquaire ouvert à temps. ${G.RELICS[rw.bonusRelic].desc}</div></div></div>` : '') +
       (rw.potion ? `<div class="loot"><img alt="" src="${G.Art.potion(rw.potion)}"><div><div class="t">${G.POTIONS[rw.potion].name}</div><div class="d">${G.POTIONS[rw.potion].desc} Touche-la dans ta ceinture pour la boire.</div></div></div>` : '') +
       (rw.bossRelics && rw.bossRelics.length
         ? `<div class="shop-sec">Choisis une relique de gardien</div><div class="shop-relics">${rw.bossRelics
@@ -2042,10 +2106,10 @@
 
   // ================================================================== le Grimoire : compétences, collection, succès, statistiques
   const HUB_TABS = [
-    ['skills', 'Compétences'],
-    ['collection', 'Collection'],
-    ['ach', 'Succès'],
-    ['stats', 'Statistiques'],
+    ['skills', 'Compétences', 'tree', 'or'],
+    ['collection', 'Collection', 'grid', 'saphir'],
+    ['ach', 'Succès', 'trophy', 'rubis'],
+    ['stats', 'Statistiques', 'chart', 'emeraude'],
   ];
   let hubTab = 'skills';
   let hubHero = 'chevalier';
@@ -2056,13 +2120,19 @@
     if (hero) hubHero = hero;
     if (!R.heroUnlocked(hubHero)) hubHero = 'chevalier';
     const ov = $('#hub');
+    const tabName = (HUB_TABS.find((t) => t[0] === hubTab) || HUB_TABS[0])[1];
     ov.innerHTML =
-      `<div class="inner"><div class="panel-head hub-head"><h2>Grimoire</h2></div>` +
-      `<div class="hub-tabs" role="tablist">${HUB_TABS.map(([k, n]) => `<button role="tab" class="${k === hubTab ? 'on' : ''}" data-t="${k}">${n}${k === 'skills' && anyPoints() ? '<i class="dot"></i>' : ''}</button>`).join('')}</div>` +
+      `<div class="inner"><div class="panel-head hub-head"><span class="kicker">Grimoire</span><h2>${tabName}</h2>` +
+      `<button class="icon-btn hub-x" id="hub-close" aria-label="Fermer le Grimoire">${icon('close')}</button></div>` +
       `<div class="scroll hub-body"></div>` +
-      `<div class="actions"><button class="btn gold" id="hub-close">Fermer</button></div></div>`;
+      `<nav class="hub-dock" role="tablist">${HUB_TABS.map(
+        ([k, n, ic, pal]) =>
+          `<button role="tab" aria-selected="${k === hubTab}" class="${k === hubTab ? 'on' : ''}" data-t="${k}">` +
+          `<span class="disc" style="background-image:url(${G.Art.rosace('hub-' + k, pal, 60)})">${icon(ic)}</span>` +
+          `<span class="nm">${n === 'Statistiques' ? 'Stats' : n}</span>${k === 'skills' && anyPoints() ? '<i class="dot"></i>' : ''}</button>`
+      ).join('')}</nav></div>`;
     ov.classList.add('show');
-    $$('.hub-tabs button', ov).forEach((b) => {
+    $$('.hub-dock button', ov).forEach((b) => {
       b.onclick = () => openHub(b.dataset.t);
     });
     $('#hub-close').onclick = () => {
