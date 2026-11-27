@@ -2,7 +2,7 @@
  * Stratégie « réseau d'abord, sans cache HTTP » : à chaque lancement avec du réseau,
  * on revalide les fichiers auprès du serveur, ce qui garantit les mises à jour.
  * La version est remplacée par tools/bump.js à chaque publication. */
-const VERSION = '1.6.0';
+const VERSION = '1.6.1';
 const CACHE = 'grimoire-vitrail-' + VERSION;
 const ASSETS = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 

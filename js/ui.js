@@ -860,8 +860,9 @@
     // ennemis déjà tombés
     c.killed.forEach((e) => {
       const f = $(foeSel(e.uid));
-      if (f) f.classList.add('dead');
+      if (f) f.classList.add('dead', 'gone');
     });
+    recenterFoes();
   }
 
   function startCombat(spec, type, mod, resume) {
@@ -980,7 +981,7 @@
     const el = $('#combat');
     R.run.hp = c.p.hp;
     refreshTopbar(el);
-    const multi = c.enemies.filter((e) => !e.away).length > 1;
+    const multi = c.alive().length > 1;
     const target = c.e;
     for (const e of c.enemies) {
       const f = $(foeSel(e.uid));
@@ -1101,6 +1102,13 @@
       if (C.busy || C.combat.over) return;
       if (drag) cancelDrag();
       e.preventDefault();
+      // la carte choisie auparavant redescend dès qu'on en touche une autre
+      if (selectedUid && selectedUid !== card.uid) {
+        selectedUid = null;
+        handEls.forEach((x) => x.classList.toggle('selected', false));
+        clearPlayPreview();
+        layoutHand();
+      }
       drag = { el, card, id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), moved: false, ready: false, long: false };
       drag.timer = setTimeout(() => {
         if (drag && drag.el === el && !drag.moved) {
@@ -1198,8 +1206,7 @@
   function select(card, el) {
     selectedUid = card.uid;
     handEls.forEach((x) => x.classList.toggle('selected', x === el));
-    el.style.transform = el.dataset.base + ' translateY(-34px) scale(1.12)';
-    el.style.zIndex = 60;
+    layoutHand(); // replace toutes les cartes : seule celle-ci reste levée
     showPlayPreview(card);
     const hint = $('#combat .drop-hint');
     if (hint) {
@@ -1406,6 +1413,17 @@
     const rect = win.getBoundingClientRect();
     if (rect.width) G.FX.shatter(img, { left: rect.left, top: rect.top, width: rect.width, height: rect.height }, { power: 1.1, count: C.combat.enemies.length > 1 ? 7 : 9 });
     f.classList.add('dead');
+    setTimeout(() => {
+      f.classList.add('gone');
+      recenterFoes();
+    }, T(450));
+  }
+  /** Les ennemis restants reprennent la place libérée (2 ou 1 colonne). */
+  function recenterFoes() {
+    const box = $('#combat .foes');
+    if (!box) return;
+    const left = $$('.foe:not(.gone)', box).length;
+    if (left) box.className = 'foes n' + left;
   }
 
   // ---- réactions aux événements du moteur

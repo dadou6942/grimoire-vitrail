@@ -122,8 +122,8 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap
   letter-spacing: 0.05em;
   color: var(--parch);
   background: none;
-  filter: var(--shadow);
-  transition: transform 0.08s, filter 0.15s;
+  filter: var(--shadow) grayscale(0) brightness(1);
+  transition: transform 0.08s;
 }
 .btn::before,
 .btn::after {
@@ -143,7 +143,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap
   background: var(--orn) left 11px center / 7px 7px no-repeat, var(--orn) right 11px center / 7px 7px no-repeat, var(--fill);
   clip-path: polygon(calc(var(--c) - 1px) 0, calc(100% - var(--c) + 1px) 0, 100% calc(var(--c) - 1px), 100% calc(100% - var(--c) + 1px), calc(100% - var(--c) + 1px) 100%, calc(var(--c) - 1px) 100%, 0 calc(100% - var(--c) + 1px), 0 calc(var(--c) - 1px));
 }
-.btn:active { transform: scale(0.96); filter: var(--shadow) brightness(1.25); }
+.btn:active { transform: scale(0.96); filter: var(--shadow) grayscale(0) brightness(1.25); }
 .btn.gold {
   --fill: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(0, 0, 0, 0.25)), linear-gradient(180deg, #9a6d1a, #4d330a);
   --orn: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M4 0L8 4 4 8 0 4z' fill='%23fff2c8'/%3E%3C/svg%3E");
@@ -156,7 +156,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap
   --orn: none;
   color: var(--parch-dim);
 }
-.btn:disabled { filter: grayscale(0.8) brightness(0.6); }
+.btn:disabled { filter: var(--shadow) grayscale(0.8) brightness(0.6); }
 .btn:focus-visible, .card:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 3px; }
 
 /* ------------------------------------------------------------ barre du haut */
@@ -288,7 +288,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap
     inset 0 -30px 40px rgba(0, 0, 0, 0.45),
     0 8px 18px rgba(0, 0, 0, 0.65);
   overflow: hidden;
-  touch-action: none;
+  touch-action: manipulation;
   font-size: calc(var(--cw) * 0.098);
   color: var(--parch);
 }
@@ -521,9 +521,9 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap
 .pile svg { width: 18px; height: 18px; fill: var(--parch-dim); }
 .end-turn { min-width: 112px; padding: 10px 24px; font-size: 16px; flex: none; }
 .end-turn.glow { animation: endGlow 1.6s ease-in-out infinite; }
-@keyframes endGlow { 50% { filter: drop-shadow(0 0 10px rgba(255, 226, 150, 0.85)) brightness(1.15); } }
+@keyframes endGlow { 50% { filter: drop-shadow(0 0 10px rgba(255, 226, 150, 0.85)) grayscale(0) brightness(1.15); } }
 .hand { position: relative; height: calc(var(--cw) * 1.5 + 22px); flex: none; margin: 0 calc(-1 * max(12px, var(--safe-l))); }
-.hand .card { position: absolute; left: 50%; bottom: 2px; transform-origin: 50% 120%; transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.2s, filter 0.2s; will-change: transform; }
+.hand .card { touch-action: none; position: absolute; left: 50%; bottom: 2px; transform-origin: 50% 120%; transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.2s, filter 0.2s; will-change: transform; }
 .hand .card.unplayable { filter: brightness(0.6) saturate(0.6); }
 .hand .card.dragging { transition: none; z-index: 50; }
 .hand .card.selected { box-shadow: 0 0 0 2.5px var(--lead), 0 0 0 4px var(--gold-hi), 0 0 22px rgba(245, 220, 150, 0.6); }
@@ -843,6 +843,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap
 .foe.aim .window { transform: scale(1.05); }
 .foe.aim .aim-ring { opacity: 1; box-shadow: 0 0 0 3px var(--gold-hi), 0 0 30px rgba(245, 220, 150, 0.8); }
 .foe.dead { opacity: 0; pointer-events: none; }
+.foe.gone { display: none; }
 .foe .w-flash { -webkit-mask: var(--mask) center / 100% 100%; mask: var(--mask) center / 100% 100%; }
 .group-mod { position: absolute; top: 2px; right: 0; z-index: 4; }
 .door-count { position: absolute; top: 8px; right: 8px; z-index: 2; font-family: var(--label); font-size: 15px; padding: 1px 8px; border-radius: 10px; background: rgba(10, 8, 14, 0.9); box-shadow: 0 0 0 1px var(--gold); color: var(--gold-hi); }
