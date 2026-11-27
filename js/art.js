@@ -456,6 +456,49 @@
     },
   };
 
+  M.flask = {
+    draw: (x) => {
+      rect(x, 42, 10, 16, 8, B);
+      rect(x, 44, 18, 12, 14, A);
+      x.fillStyle = A;
+      x.beginPath();
+      x.moveTo(44, 30);
+      x.lineTo(56, 30);
+      x.bezierCurveTo(80, 42, 84, 66, 76, 80);
+      x.quadraticCurveTo(50, 98, 24, 80);
+      x.bezierCurveTo(16, 66, 20, 42, 44, 30);
+      x.fill();
+      x.fillStyle = C;
+      x.beginPath();
+      x.moveTo(24, 62);
+      x.quadraticCurveTo(50, 54, 78, 62);
+      x.quadraticCurveTo(80, 74, 74, 80);
+      x.quadraticCurveTo(50, 94, 26, 80);
+      x.quadraticCurveTo(20, 72, 24, 62);
+      x.fill();
+      ell(x, 34, 50, 4, 8, B, 0.4);
+    },
+  };
+  M.door = {
+    draw: (x) => {
+      x.fillStyle = B;
+      x.beginPath();
+      x.moveTo(18, 96);
+      x.lineTo(18, 40);
+      x.quadraticCurveTo(50, 0, 82, 40);
+      x.lineTo(82, 96);
+      x.fill();
+      x.fillStyle = A;
+      x.beginPath();
+      x.moveTo(26, 96);
+      x.lineTo(26, 42);
+      x.quadraticCurveTo(50, 10, 74, 42);
+      x.lineTo(74, 96);
+      x.fill();
+      circ(x, 64, 64, 4, C);
+    },
+  };
+
   // ------------------------------------------------------------------ figures (ennemis, héros)
   // boîte 100 x 120, sujet centré, pieds en bas
   function robe(x, cx, top, bottom, wTop, wBot, col) {
@@ -761,6 +804,91 @@
       ring(x, 78, 18, 5, 9, B);
     },
     paint: (x) => line(x, [45, 44, 50, 46, 55, 44]),
+  };
+  F.rat = {
+    draw: (x) => {
+      robe(x, 50, 56, 116, 16, 30, A);
+      hood(x, 50, 48, 15, A);
+      ell(x, 50, 54, 11, 9, B);
+      poly(x, [44, 58, 56, 58, 50, 74], B);
+      circ(x, 50, 74, 2.6, '#000000');
+      ell(x, 34, 36, 7, 10, B, -0.4);
+      ell(x, 66, 36, 7, 10, B, 0.4);
+      eyes(x, 50, 52, 5, 2.2, C);
+      x.fillStyle = B;
+      x.beginPath();
+      x.moveTo(72, 108);
+      x.quadraticCurveTo(96, 96, 90, 70);
+      x.lineTo(93, 70);
+      x.quadraticCurveTo(100, 100, 74, 112);
+      x.fill();
+      circ(x, 30, 90, 7, C);
+    },
+    paint: (x) => {
+      line(x, [44, 64, 34, 62]);
+      line(x, [56, 64, 66, 62]);
+    },
+  };
+  F.skeleton = {
+    draw: (x) => {
+      circ(x, 50, 26, 13, A);
+      rect(x, 43, 36, 14, 8, A);
+      for (let i = 0; i < 4; i++) rect(x, 36, 48 + i * 7, 28, 4, A);
+      rect(x, 48, 44, 4, 44, A);
+      poly(x, [36, 88, 64, 88, 60, 96, 40, 96], A);
+      rect(x, 40, 96, 5, 22, A);
+      rect(x, 55, 96, 5, 22, A);
+      poly(x, [34, 50, 20, 76, 24, 78, 38, 56], A);
+      rect(x, 72, 6, 3, 110, B);
+      poly(x, [73.5, 0, 79, 12, 73.5, 18, 68, 12], C);
+      poly(x, [66, 52, 76, 50, 78, 56, 68, 58], A);
+      ell(x, 45, 26, 3.6, 4.6, C);
+      ell(x, 55, 26, 3.6, 4.6, C);
+    },
+  };
+  F.candleFoe = {
+    draw: (x) => {
+      rect(x, 32, 40, 36, 66, A);
+      ell(x, 50, 40, 18, 6, A);
+      for (let i = 0; i < 4; i++) ell(x, 36 + i * 9, 46 + (i % 2) * 8, 3, 9, A);
+      poly(x, [20, 106, 80, 106, 72, 118, 28, 118], B);
+      flameShape(x, 50, 34, 13, 34, C);
+      ell(x, 43, 64, 4, 5, C);
+      ell(x, 57, 64, 4, 5, C);
+      ell(x, 50, 80, 6, 4, '#000000');
+    },
+  };
+  F.executioner = {
+    draw: (x) => {
+      robe(x, 50, 46, 118, 22, 30, A);
+      hood(x, 50, 32, 17, A);
+      eyes(x, 50, 34, 5, 2.4, C);
+      rot(x, 74, 60, 0.3, () => {
+        rect(x, 72, 14, 5, 96, B);
+        x.fillStyle = C;
+        x.beginPath();
+        x.moveTo(76, 18);
+        x.quadraticCurveTo(102, 22, 98, 50);
+        x.quadraticCurveTo(88, 40, 76, 44);
+        x.fill();
+      });
+      poly(x, [30, 60, 18, 88, 24, 90, 36, 66], B);
+    },
+    paint: (x) => line(x, [40, 70, 50, 74, 60, 70]),
+  };
+  F.herald = {
+    draw: (x) => {
+      robe(x, 50, 46, 118, 16, 32, A);
+      hood(x, 50, 34, 16, A);
+      ell(x, 50, 38, 9, 11, '#000000');
+      eyes(x, 50, 37, 4, 2, C);
+      poly(x, [58, 46, 92, 22, 96, 32, 62, 52], B);
+      ell(x, 94, 27, 4, 9, C, 0.6);
+      poly(x, [28, 70, 72, 70, 66, 96, 34, 96], B);
+    },
+    paint: (x) => {
+      for (let i = 0; i < 3; i++) line(x, [38, 78 + i * 6, 62, 78 + i * 6]);
+    },
   };
   // héros
   F.knight = {
@@ -1127,10 +1255,17 @@
       });
     },
     node(type, done) {
-      const m = { combat: ['sword', 'rubis'], elite: ['skull', 'amethyste'], merchant: ['coin', 'or'], altar: ['candle', 'ambre'], event: ['eye', 'saphir'], boss: ['crown', 'rubis'] }[type];
+      const m = { combat: ['sword', 'rubis'], elite: ['skull', 'amethyste'], merchant: ['coin', 'or'], altar: ['candle', 'ambre'], event: ['eye', 'saphir'], boss: ['crown', 'rubis'], treasure: ['key', 'or'] }[type];
       return url('node:' + type + (done ? ':d' : ''), {
         w: Math.round(64 * DPR), h: Math.round(64 * DPR), seed: seedOf(type), motif: m[0],
         pal: done ? 'nuit' : m[1], a: done ? 'nuit' : 'os', b: 'or', c: 'braise', cell: 18, layout: 'radial', shape: 'circle', light: [0.4, 0.3], scale: 0.7, leadScale: 1.5,
+      });
+    },
+    potion(id) {
+      const pot = G.POTIONS[id];
+      return url('potion:' + id, {
+        w: Math.round(56 * DPR), h: Math.round(56 * DPR), seed: seedOf(id), motif: 'flask',
+        pal: 'nuit', a: 'os', b: 'or', c: pot.pal, cell: 16, layout: 'radial', shape: 'circle', light: [0.4, 0.3], scale: 0.86, leadScale: 1.3,
       });
     },
     event(ev) {

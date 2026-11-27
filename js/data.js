@@ -220,6 +220,50 @@
     art: 'rose', quote: 'Chaque carte, une pierre ; chaque pierre, une prière.',
   });
 
+  card('coupEcu', {
+    hero: 'chevalier', name: 'Coup d’écu', type: 'atk', rarity: 'c', cost: 1,
+    v: { d: 5, x: 5 }, up: { d: 7, x: 6 }, text: 'Inflige {D} dégâts. Si tu as de l’Armure, {x} dégâts de plus.',
+    play: (c, v) => c.attack(v.d + (c.p.block > 0 ? v.x : 0)),
+    art: 'shield', quote: 'Le rebord de l’écu est une lame qui s’ignore.',
+  });
+  card('priereGuet', {
+    hero: 'chevalier', name: 'Prière du guet', type: 'skl', rarity: 'c', cost: 0, exhaust: true,
+    v: { b: 4 }, up: { b: 7 }, text: 'Gagne {b} Armure. Pioche 1 carte. Épuise.',
+    play: (c, v) => {
+      c.block(v.b);
+      c.draw(1);
+    },
+    art: 'candle', quote: 'Que la nuit passe sans moi.',
+  });
+  card('assaut', {
+    hero: 'chevalier', name: 'Assaut furieux', type: 'atk', rarity: 'u', cost: 1,
+    v: { d: 4 }, up: { d: 6 }, text: 'Inflige {D} dégâts, une fois de plus par Attaque déjà jouée ce tour.',
+    play: (c, v) => c.attack(v.d, Math.max(1, c.stats.atkTurn)),
+    art: 'axe', quote: 'Chaque coup appelle le suivant.',
+  });
+  card('paradeParfaite', {
+    hero: 'chevalier', name: 'Parade parfaite', type: 'skl', rarity: 'u', cost: 1,
+    v: { m: 20 }, up: { m: 32 }, text: 'Gagne autant d’Armure que les dégâts annoncés par l’ennemi (au plus {m}).',
+    play: (c, v) => {
+      const m = c.e.intent;
+      const d = m && m.dmg ? c.calcDamage(c.e, c.p, m.dmg, true) * (m.hits || 1) : 0;
+      c.block(Math.min(v.m, d));
+    },
+    art: 'shieldSword', quote: 'Je savais où tu frapperais.',
+  });
+  card('banniere', {
+    hero: 'chevalier', name: 'Bannière de la nef', type: 'pow', rarity: 'r', cost: 2,
+    v: { n: 2 }, up: { n: 3 }, text: 'Chaque fois que tu gagnes de l’Armure, inflige {n} dégâts.',
+    play: (c, v) => c.self('banniere', v.n),
+    art: 'lance', quote: 'Tant que flotte la bannière, la nef tient.',
+  });
+  card('vigilance', {
+    hero: 'chevalier', name: 'Vigilance', type: 'pow', rarity: 'r', cost: 1, upCost: 0,
+    v: {}, up: {}, text: 'Pioche 1 carte de plus au début de chaque tour.',
+    play: (c) => c.self('vigilance', 1),
+    art: 'eye', quote: 'Le sommeil est pour les gisants.',
+  });
+
   // ---------- malédictions
   card('doute', {
     name: 'Doute', type: 'curse', rarity: 'curse', cost: -1, unplayable: true,
@@ -261,6 +305,8 @@
     martyre: { name: 'Martyre', icon: 'martyre', good: true, desc: 'Gagne {n} Armure au début de chaque tour.' },
     veille: { name: 'Veille', icon: 'veille', good: true, desc: 'Gagne {n} Encre au prochain tour.' },
     rituel: { name: 'Rituel', icon: 'force', good: true, desc: 'Gagne {n} Force à la fin de chaque tour.' },
+    banniere: { name: 'Bannière', icon: 'banniere', good: true, desc: 'Inflige {n} dégâts chaque fois que tu gagnes de l’Armure.' },
+    vigilance: { name: 'Vigilance', icon: 'veille', good: true, desc: 'Pioche {n} carte(s) de plus à chaque tour.' },
   };
 
   // ------------------------------------------------------------------ ennemis
@@ -286,6 +332,20 @@
       name: 'Gargouille du porche', act: 1, hp: [46, 50], art: 'gargoyle', pal: 'nuit',
       moves: { petrifier: { name: 'Se pétrifier', block: 12 }, ecraser: { name: 'Écrasement', dmg: 15 } },
       ai: (e, t) => (t % 2 === 0 ? 'petrifier' : 'ecraser'),
+    },
+    ratMoine: {
+      name: 'Rat-moine', act: 1, hp: [32, 36], art: 'rat', pal: 'ambre',
+      moves: { larcin: { name: 'Larcin', dmg: 6, steal: 12 }, morsure: { name: 'Morsure', dmg: 8 } },
+      ai: (e, t) => (t % 2 === 0 ? 'larcin' : 'morsure'),
+    },
+    sentinelle: {
+      name: 'Sentinelle d’ossements', act: 1, elite: true, hp: [68, 72], art: 'skeleton', pal: 'os',
+      moves: {
+        garde: { name: 'Garde', block: 12 },
+        pique: { name: 'Double pique', dmg: 7, hits: 2 },
+        hurle: { name: 'Hurlement d’os', debuff: { faib: 2 }, buff: { force: 1 } },
+      },
+      ai: (e, t) => ['pique', 'garde', 'hurle', 'pique'][t % 4],
     },
     chevalierCreux: {
       name: 'Chevalier creux', act: 1, elite: true, hp: [64, 68], art: 'knightFoe', pal: 'nuit',
@@ -331,6 +391,20 @@
       name: 'Chien du chapitre', act: 2, hp: [48, 52], art: 'hound', pal: 'ambre',
       moves: { curee: { name: 'Curée', dmg: 4, hits: 3 }, hurlement: { name: 'Hurlement', dmg: 5, buff: { force: 1 } } },
       ai: (e, t) => (t % 3 === 1 ? 'hurlement' : 'curee'),
+    },
+    cierge: {
+      name: 'Cierge vivant', act: 2, hp: [42, 46], art: 'candleFoe', pal: 'or', start: { rituel: 1 },
+      moves: { flamme: { name: 'Flamme', dmg: 7 }, cire: { name: 'Cire brûlante', dmg: 4, hits: 2 } },
+      ai: (e, t) => (t % 2 ? 'cire' : 'flamme'),
+    },
+    bourreau: {
+      name: 'Le Bourreau', act: 2, elite: true, hp: [96, 100], art: 'executioner', pal: 'rubis',
+      moves: {
+        chaine: { name: 'Chaîne', dmg: 6, debuff: { fel: 2 } },
+        hache: { name: 'Hache', dmg: 17 },
+        aiguiser: { name: 'Aiguiser', block: 10, buff: { force: 2 } },
+      },
+      ai: (e, t) => ['chaine', 'hache', 'aiguiser'][t % 3],
     },
     inquisiteur: {
       name: 'L’Inquisiteur', act: 2, elite: true, hp: [96, 102], art: 'inquisitor', pal: 'rubis',
@@ -381,6 +455,20 @@
       moves: { sommeil: { name: 'Sommeil de pierre', block: 20 }, reveil: { name: 'Réveil', dmg: 22 }, poids: { name: 'Poids des siècles', dmg: 10, debuff: { fel: 2 } } },
       ai: (e, t) => ['sommeil', 'reveil', 'poids'][t % 3],
     },
+    heraut: {
+      name: 'Héraut du glas', act: 3, hp: [70, 74], art: 'herald', pal: 'nuit',
+      moves: { appel: { name: 'Appel', block: 12, buff: { force: 1 } }, echo: { name: 'Écho', dmg: 10 }, glas: { name: 'Grand Glas', dmg: 22 } },
+      ai: (e, t) => ['appel', 'echo', 'glas'][t % 3],
+    },
+    reflet: {
+      name: 'Reflet du Chevalier', act: 3, elite: true, hp: [118, 124], art: 'knightFoe', pal: 'saphir',
+      moves: {
+        taille: { name: 'Taille', dmg: 11 },
+        egide: { name: 'Égide', block: 16, buff: { force: 1 } },
+        heurt: { name: 'Heurt du pavois', dmg: 12, debuff: { fel: 2 } },
+      },
+      ai: (e, t) => ['heurt', 'taille', 'egide', 'taille'][t % 4],
+    },
     seraphin: {
       name: 'Séraphin noir', act: 3, elite: true, hp: [124, 130], art: 'seraph', pal: 'nuit',
       moves: {
@@ -403,9 +491,9 @@
   };
 
   const ACT_POOLS = {
-    1: { normal: ['goule', 'acolyte', 'essaim', 'gargouille'], elite: ['chevalierCreux'], boss: 'mereOs', name: 'Les Cryptes', pal: 'emeraude' },
-    2: { normal: ['penitent', 'vitrailPossede', 'soeur', 'chien'], elite: ['inquisiteur'], boss: 'choeur', name: 'La Nef', pal: 'rubis' },
-    3: { normal: ['angeDechu', 'cloche', 'scribe', 'gisant'], elite: ['seraphin'], boss: 'eveque', name: 'Le Sanctuaire', pal: 'saphir' },
+    1: { normal: ['goule', 'acolyte', 'essaim', 'gargouille', 'ratMoine'], elite: ['chevalierCreux', 'sentinelle'], boss: 'mereOs', name: 'Les Cryptes', pal: 'emeraude' },
+    2: { normal: ['penitent', 'vitrailPossede', 'soeur', 'chien', 'cierge'], elite: ['inquisiteur', 'bourreau'], boss: 'choeur', name: 'La Nef', pal: 'rubis' },
+    3: { normal: ['angeDechu', 'cloche', 'scribe', 'gisant', 'heraut'], elite: ['seraphin', 'reflet'], boss: 'eveque', name: 'Le Sanctuaire', pal: 'saphir' },
   };
 
   // ------------------------------------------------------------------ reliques
@@ -519,6 +607,19 @@
     },
   ];
 
+  // ------------------------------------------------------------------ fioles (usage unique)
+  const POTIONS = {
+    larme: { name: 'Larme de sainte', pal: 'ciel', desc: 'Soigne 18 PV. Utilisable partout.', anywhere: true, use: (c) => (c ? c.heal(18) : G.Run.heal(18)) },
+    feu: { name: 'Feu grégeois', pal: 'ambre', desc: 'Inflige 20 dégâts à l’ennemi.', use: (c) => c.pierce(20) },
+    verre: { name: 'Verre fondu', pal: 'saphir', desc: 'Gagne 14 Armure.', use: (c) => c.block(14) },
+    encre: { name: 'Encre de seiche', pal: 'nuit', desc: 'Gagne 2 Encre.', use: (c) => c.gainInk(2) },
+    acide: { name: 'Acide de verrier', pal: 'emeraude', desc: 'Applique 3 Fêlure.', use: (c) => c.apply('fel', 3) },
+    elixir: { name: 'Élixir du templier', pal: 'rubis', desc: 'Gagne 3 Force pour ce combat.', use: (c) => c.self('force', 3) },
+    corbeau: { name: 'Encre de corbeau', pal: 'amethyste', desc: 'Pioche 3 cartes.', use: (c) => c.draw(3) },
+    cendre: { name: 'Cendre grise', pal: 'os', desc: 'Applique 2 Faiblesse.', use: (c) => c.apply('faib', 2) },
+  };
+
+  G.POTIONS = POTIONS;
   G.CARDS = CARDS;
   G.HEROES = HEROES;
   G.STATUS = STATUS;

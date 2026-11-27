@@ -1,5 +1,5 @@
 /* Service worker : le jeu fonctionne hors ligne une fois chargé. */
-const CACHE = 'grimoire-vitrail-v1';
+const CACHE = 'grimoire-vitrail-v2';
 const ASSETS = ['./', 'index.html', 'style.css', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
   'js/data.js', 'js/engine.js', 'js/art.js', 'js/fx.js', 'js/ui.js'];
 

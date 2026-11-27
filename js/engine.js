@@ -95,15 +95,18 @@
       deck: h.deck.map((id) => newCard(id)),
       relics: [h.relic],
       act: 1,
-      map: null,
-      pos: null,
+      step: 0,
+      doors: null,
+      history: [],
+      actSeen: {},
+      potions: ['larme'],
       floor: 0,
       stats: { kills: 0, elites: 0, bosses: 0, cards: 0, time: 0 },
       removeCost: 75,
       seenEvents: [],
       seed: Math.floor(Math.random() * 1e9),
     };
-    R.run.map = R.makeMap(1);
+    R.run.doors = R.makeDoors();
     R.meta.runs++;
     R.saveMeta();
     R.save();
@@ -200,49 +203,117 @@
   R.chooseUpgrade = () => G.UI.pickFromDeck('Améliorer une carte', (c) => !c.up && G.CARDS[c.id].type !== 'curse', (c) => R.upgradeCard(c.uid), 'Améliorée');
   R.chooseCard = (n) => G.UI.cardReward(R.cardChoices(n, 0.08), 'Choisis une carte');
 
-  // ---------------------------------------------------------------- carte d'ascension
-  // 5 rangées par acte : 4 rangées de choix puis le boss
-  R.makeMap = function (act) {
-    const r = G.rng(R.run.seed + act * 977);
-    const rows = [];
-    const typesFor = (row) => {
-      if (row === 0) return ['combat', 'combat', 'combat'];
-      if (row === 1) return shuffle(['combat', 'event', pick(['combat', 'event', 'merchant'], r)], r);
-      if (row === 2) return shuffle(['elite', pick(['combat', 'event'], r), pick(['merchant', 'event', 'combat'], r)], r);
-      return shuffle(['altar', 'altar', pick(['merchant', 'altar', 'event'], r)], r);
-    };
-    for (let row = 0; row < 4; row++) {
-      const types = typesFor(row);
-      rows.push(types.map((type, lane) => ({ type, lane, row, next: [] })));
+  // ---------------------------------------------------------------- carrefours
+  // Chaque acte : 5 étages où l'on choisit librement une porte parmi 3, puis le gardien.
+  R.FLOORS = 5;
+  const MODS = {
+    fervent: { name: 'Enragé', desc: 'L’ennemi commence avec 2 Force.', reward: '+50 % d’or, cartes plus rares', gold: 1.5, rare: 0.15 },
+    cuirasse: { name: 'Cuirassé', desc: 'L’ennemi a plus de PV et commence avec 10 Armure.', reward: 'Or doublé', gold: 2 },
+    brume: { name: 'Dans la brume', desc: 'Ses intentions sont cachées.', reward: 'Une fiole garantie', potion: true },
+  };
+  G.MODS = MODS;
+
+  function weighted(list, r) {
+    const total = list.reduce((s, x) => s + x[1], 0);
+    let v = (r || rand)() * total;
+    for (const [k, w] of list) {
+      v -= w;
+      if (v <= 0) return k;
     }
-    rows.push([{ type: 'boss', lane: 1, row: 4, next: [] }]);
-    // liaisons : chaque nœud vers la même voie et parfois une voisine
-    for (let row = 0; row < 3; row++) {
-      for (const n of rows[row]) {
-        n.next.push(n.lane);
-        const side = n.lane === 0 ? 1 : n.lane === 2 ? 1 : r() < 0.5 ? 0 : 2;
-        if (r() < 0.55) n.next.push(side);
-      }
-      // chaque nœud suivant doit être atteignable
-      for (const m of rows[row + 1]) {
-        if (!rows[row].some((n) => n.next.includes(m.lane))) {
-          const from = rows[row].reduce((best, n) => (Math.abs(n.lane - m.lane) < Math.abs(best.lane - m.lane) ? n : best));
-          from.next.push(m.lane);
-        }
+    return list[list.length - 1][0];
+  }
+
+  R.makeDoors = function () {
+    const run = R.run;
+    const step = run.step;
+    const pool = G.ACT_POOLS[run.act];
+    if (step >= R.FLOORS) return [{ type: 'boss', enemy: pool.boss }];
+    const types = [];
+    if (step === 0) types.push('combat', 'combat', rand() < 0.5 ? 'event' : 'combat');
+    else if (step === R.FLOORS - 1) {
+      types.push('altar');
+      types.push(run.actSeen.merchant ? 'event' : 'merchant');
+      types.push(rand() < 0.5 ? 'elite' : 'combat');
+    } else {
+      types.push(rand() < 0.75 ? 'combat' : 'elite');
+      const opts = [
+        ['combat', 3],
+        ['elite', step >= 1 ? 1.4 : 0],
+        ['event', 2.2],
+        ['merchant', run.actSeen.merchant ? 0.2 : 1.2],
+        ['altar', step >= 2 ? 1 : 0.2],
+        ['treasure', step >= 2 && !run.actSeen.treasure ? 0.8 : 0],
+      ];
+      let guard = 0;
+      while (types.length < 3 && guard++ < 40) {
+        const t = weighted(opts);
+        if (t !== 'combat' && types.includes(t)) continue;
+        if (t === 'combat' && types.filter((x) => x === 'combat').length >= 2) continue;
+        types.push(t);
       }
     }
-    for (const n of rows[3]) n.next = [1];
-    return { act, rows };
+    // ennemis distincts et variantes
+    const used = [];
+    return shuffle(types).map((type) => {
+      const d = { type };
+      if (type === 'combat' || type === 'elite') {
+        const list = type === 'elite' ? pool.elite : pool.normal;
+        let id;
+        let g = 0;
+        do {
+          id = pick(list);
+        } while ((used.includes(id) || id === run.lastEnemy) && g++ < 12);
+        used.push(id);
+        d.enemy = id;
+        if (type === 'combat' && step > 0 && rand() < 0.45) d.mod = pick(Object.keys(MODS));
+      }
+      return d;
+    });
   };
 
-  R.availableNodes = function () {
+  R.chooseDoor = function (i) {
     const run = R.run;
-    const rows = run.map.rows;
-    if (!run.pos) return rows[0];
-    const cur = rows[run.pos.row].find((n) => n.lane === run.pos.lane);
-    if (run.pos.row >= rows.length - 1) return [];
-    const nextRow = rows[run.pos.row + 1];
-    return nextRow.filter((n) => cur.next.includes(n.lane) || nextRow.length === 1);
+    const d = run.doors[i];
+    run.pending = d;
+    if (d.enemy) run.lastEnemy = d.enemy;
+    if (d.type === 'merchant' || d.type === 'treasure') run.actSeen[d.type] = true;
+    R.save();
+    return d;
+  };
+
+  R.finishStep = function () {
+    const run = R.run;
+    if (!run.pending) return false;
+    run.history.push(run.pending.type);
+    run.pending = null;
+    run.step++;
+    run.floor++;
+    run.doors = R.makeDoors();
+    R.save();
+    return true;
+  };
+
+  R.startNextAct = function () {
+    const run = R.run;
+    run.act++;
+    run.step = 0;
+    run.history = [];
+    run.actSeen = {};
+    run.pending = null;
+    run.floor++;
+    run.hp = run.maxHp;
+    run.doors = R.makeDoors();
+    R.save();
+  };
+
+  // ---------------------------------------------------------------- fioles
+  R.addPotion = function (id) {
+    if (R.run.potions.length >= 3) return false;
+    R.run.potions.push(id || pick(Object.keys(G.POTIONS)));
+    return true;
+  };
+  R.removePotion = function (idx) {
+    R.run.potions.splice(idx, 1);
   };
 
   R.enemyFor = function (type) {
@@ -276,13 +347,15 @@
 
   // ================================================================== combat
   class Combat {
-    constructor(enemyId, emit) {
+    constructor(enemyId, emit, mod) {
       const run = R.run;
       const def = G.ENEMIES[enemyId];
       this.emit = emit || (() => {});
       this.enemyId = enemyId;
+      this.mod = mod || null;
       this.rng = rand;
-      const hp = Math.round(def.hp[0] + rand() * (def.hp[1] - def.hp[0]));
+      let hp = Math.round(def.hp[0] + rand() * (def.hp[1] - def.hp[0]));
+      if (mod === 'cuirasse') hp = Math.round(hp * 1.15);
       this.p = { hp: run.hp, maxHp: run.maxHp, block: 0, st: {} };
       this.e = { id: enemyId, def, name: def.name, hp, maxHp: hp, block: 0, st: Object.assign({}, def.start || {}), intent: null, turn: 0, moveKey: null };
       this.pile = shuffle(run.deck.map((c) => Object.assign({}, c)));
@@ -291,7 +364,11 @@
       this.exhausted = [];
       this.ink = 0;
       this.turn = 0;
-      this.stats = { played: 0, dealt: 0 };
+      this.stats = { played: 0, dealt: 0, atkTurn: 0 };
+      this.hidden = mod === 'brume';
+      this.stolen = 0;
+      if (mod === 'fervent') this.e.st.force = (this.e.st.force || 0) + 2;
+      if (mod === 'cuirasse') this.e.block = 10;
       this.over = false;
       this.won = false;
       this.hpLowUsed = false;
@@ -323,11 +400,11 @@
     pierce(n) {
       this.hit(this.e, n, false, 'pierce');
     }
-    block(n, raw) {
-      const amt = raw ? n : n;
-      if (amt <= 0) return;
-      this.p.block += amt;
-      this.emit({ t: 'block', who: 'p', n: amt });
+    block(n) {
+      if (n <= 0) return;
+      this.p.block += n;
+      this.emit({ t: 'block', who: 'p', n });
+      if (this.p.st.banniere && this.e.hp > 0) this.hit(this.e, this.p.st.banniere, false, 'banner');
     }
     apply(st, n) {
       this.e.st[st] = (this.e.st[st] || 0) + n;
@@ -423,8 +500,9 @@
         this.ink += p.st.veille;
         p.st.veille = 0;
       }
+      this.stats.atkTurn = 0;
       if (p.st.martyre) this.block(p.st.martyre);
-      this.draw(R.drawPerTurn());
+      this.draw(R.drawPerTurn() + (p.st.vigilance || 0));
       this.relicHook('turnStart');
       this.chooseIntent();
       this.emit({ t: 'turnStart', turn: this.turn });
@@ -450,6 +528,7 @@
       this.hand = this.hand.filter((c) => c !== card);
       this.stats.played++;
       R.run.stats.cards++;
+      if (def.type === 'atk') this.stats.atkTurn++;
       def.play(this, G.cardVals(card));
       if (def.type === 'pow') this.emit({ t: 'power', card });
       else if (def.exhaust) {
@@ -503,6 +582,12 @@
         this.p.st[k] = (this.p.st[k] || 0) + m.debuff[k];
         this.emit({ t: 'status', who: 'p', st: k, n: m.debuff[k] });
       }
+      if (m.steal && R.run.gold > 0) {
+        const n = Math.min(R.run.gold, m.steal);
+        R.run.gold -= n;
+        this.stolen += n;
+        this.emit({ t: 'steal', n });
+      }
       if (m.curse) {
         for (let i = 0; i < (m.n || 1); i++) this.discard.push(newCard(m.curse));
         this.emit({ t: 'curse', id: m.curse, n: m.n || 1 });
@@ -512,9 +597,49 @@
       e.turn++;
     }
 
+    /** Joue la carte sur une copie du combat, sans effet réel : sert à l'aperçu. */
+    simulate(card) {
+      const s = Object.create(Combat.prototype);
+      Object.assign(s, this);
+      s.emit = () => {};
+      s.p = Object.assign({}, this.p, { st: Object.assign({}, this.p.st) });
+      s.e = Object.assign({}, this.e, { st: Object.assign({}, this.e.st) });
+      s.pile = this.pile.slice();
+      s.hand = this.hand.slice();
+      s.discard = this.discard.slice();
+      s.exhausted = this.exhausted.slice();
+      s.stats = Object.assign({}, this.stats);
+      const run = R.run;
+      const saved = { gold: run.gold, cards: run.stats.cards, hp: run.hp };
+      const inst = s.hand.find((k) => k.uid === card.uid);
+      if (inst) s.play(inst);
+      run.gold = saved.gold;
+      run.stats.cards = saved.cards;
+      run.hp = saved.hp;
+      return { eHp: s.e.hp, eBlock: s.e.block, pBlock: s.p.block, pHp: s.p.hp };
+    }
+
+    usePotion(idx) {
+      const id = R.run.potions[idx];
+      const pot = G.POTIONS[id];
+      if (!pot || this.over) return false;
+      R.removePotion(idx);
+      this.emit({ t: 'potion', id });
+      pot.use(this);
+      return true;
+    }
+
+    incoming() {
+      const m = this.e.intent;
+      if (!m || !m.dmg || this.hidden) return 0;
+      const per = this.calcDamage(this.e, this.p, m.dmg, true);
+      return Math.max(0, per * (m.hits || 1) - this.p.block);
+    }
+
     intentInfo() {
       const m = this.e.intent;
       if (!m) return null;
+      if (this.hidden) return { name: 'Intention voilée', kinds: ['hidden'] };
       const out = { name: m.name, kinds: [] };
       if (m.dmg) {
         out.kinds.push('atk');

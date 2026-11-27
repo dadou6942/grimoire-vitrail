@@ -1,4 +1,7 @@
-/* Grimoire de Vitrail — effets : éclats de verre, lumière, poussières, transition en rosace */
+/* Grimoire de Vitrail — effets : éclats de verre, étincelles, poussières, transition en rosace
+ * Pensé pour rester fluide sur téléphone : les éclats sont découpés une seule fois
+ * (petits canevas pré-rendus), le canevas d'effets ne travaille que s'il y a quelque chose
+ * à montrer, et les poussières sont dessinées en basse résolution. */
 (function (G) {
   'use strict';
 
@@ -11,10 +14,10 @@
   let W = 0;
   let H = 0;
   let dpr = 1;
+  let dirty = false;
   const shards = [];
   const sparks = [];
   const dust = [];
-  const light = { x: 0, y: 0, tx: 0, ty: 0, touchT: 0 };
 
   FX.init = function () {
     fx = document.getElementById('fx');
@@ -23,14 +26,7 @@
     mctx = motes.getContext('2d');
     resize();
     window.addEventListener('resize', resize);
-    const follow = (e) => {
-      light.tx = e.clientX;
-      light.ty = e.clientY;
-      light.touchT = 2.5;
-    };
-    window.addEventListener('pointermove', follow, { passive: true });
-    window.addEventListener('pointerdown', follow, { passive: true });
-    for (let i = 0; i < 38; i++) dust.push(newMote(true));
+    for (let i = 0; i < 22; i++) dust.push(newMote(true));
     requestAnimationFrame(loop);
   };
 
@@ -38,34 +34,31 @@
     dpr = Math.min(2, window.devicePixelRatio || 1);
     W = window.innerWidth;
     H = window.innerHeight;
-    for (const c of [fx, motes]) {
-      c.width = Math.round(W * dpr);
-      c.height = Math.round(H * dpr);
-      c.style.width = W + 'px';
-      c.style.height = H + 'px';
-    }
+    fx.width = Math.round(W * dpr);
+    fx.height = Math.round(H * dpr);
+    fx.style.width = W + 'px';
+    fx.style.height = H + 'px';
+    // poussières : résolution réduite, invisible à l'œil
+    motes.width = Math.round(W / 2);
+    motes.height = Math.round(H / 2);
+    motes.style.width = W + 'px';
+    motes.style.height = H + 'px';
   }
 
   function newMote(anyY) {
-    return { x: Math.random() * W, y: anyY ? Math.random() * H : H + 5, vy: -(4 + Math.random() * 10), ph: Math.random() * 6, s: Math.random() < 0.2 ? 2 : 1.2, a: 0.15 + Math.random() * 0.35 };
+    return { x: Math.random() * W, y: anyY ? Math.random() * H : H + 5, vy: -(4 + Math.random() * 9), ph: Math.random() * 6, s: Math.random() < 0.2 ? 2 : 1, a: 0.15 + Math.random() * 0.3 };
   }
 
   // ------------------------------------------------------------ éclats de verre
   /**
    * Brise un rectangle d'écran en éclats qui retombent.
-   * src : image ou canvas à découper ; rect : {left, top, width, height} ; o : {power, count, cx, cy}
+   * src : image ou canevas ; rect : {left, top, width, height} ; o : {power, count}
    */
   FX.shatter = function (src, rect, o) {
     o = o || {};
-    const n = o.count || 14;
-    const cx = rect.left + rect.width * (o.cx !== undefined ? o.cx : 0.5);
-    const cy = rect.top + rect.height * (o.cy !== undefined ? o.cy : 0.45);
-    const R = Math.hypot(rect.width, rect.height);
-    const angles = [];
-    for (let i = 0; i < n; i++) angles.push(((i + Math.random() * 0.7) / n) * Math.PI * 2);
-    const ringR = Math.min(rect.width, rect.height) * (0.22 + Math.random() * 0.1);
-    const ring = angles.map((a) => [cx + Math.cos(a) * ringR * (0.7 + Math.random() * 0.6), cy + Math.sin(a) * ringR * (0.7 + Math.random() * 0.6)]);
-    // points extérieurs : intersection du rayon avec le bord du rectangle
+    const n = o.count || 9;
+    const cx = rect.left + rect.width * 0.5;
+    const cy = rect.top + rect.height * 0.45;
     const toEdge = (a) => {
       const dx = Math.cos(a);
       const dy = Math.sin(a);
@@ -76,141 +69,130 @@
       if (dy < -1e-6) t = Math.min(t, (rect.top - cy) / dy);
       return [cx + dx * t, cy + dy * t];
     };
+    const angles = [];
+    for (let i = 0; i < n; i++) angles.push(((i + Math.random() * 0.7) / n) * Math.PI * 2);
+    const ringR = Math.min(rect.width, rect.height) * (0.24 + Math.random() * 0.08);
+    const ring = angles.map((a) => [cx + Math.cos(a) * ringR, cy + Math.sin(a) * ringR]);
     const outer = angles.map(toEdge);
     const polys = [];
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n;
       polys.push([[cx, cy], ring[i], ring[j]]);
-      // fragment extérieur coupé en deux
-      const mid = [(outer[i][0] + outer[j][0]) / 2, (outer[i][1] + outer[j][1]) / 2];
-      const mr = [(ring[i][0] + ring[j][0]) / 2, (ring[i][1] + ring[j][1]) / 2];
-      polys.push([ring[i], mr, mid, outer[i]]);
-      polys.push([mr, ring[j], outer[j], mid]);
+      polys.push([ring[i], ring[j], outer[j], outer[i]]);
     }
     const power = o.power || 1;
     for (const p of polys) {
-      const pc = p.reduce((s, q) => [s[0] + q[0] / p.length, s[1] + q[1] / p.length], [0, 0]);
-      const dx = pc[0] - cx;
-      const dy = pc[1] - cy;
+      const xs = p.map((q) => q[0]);
+      const ys = p.map((q) => q[1]);
+      const x0 = Math.floor(Math.min(...xs));
+      const y0 = Math.floor(Math.min(...ys));
+      const w = Math.ceil(Math.max(...xs)) - x0 + 2;
+      const h = Math.ceil(Math.max(...ys)) - y0 + 2;
+      if (w < 3 || h < 3) continue;
+      // découpe unique de l'éclat dans un petit canevas
+      const c = document.createElement('canvas');
+      c.width = Math.ceil(w * dpr);
+      c.height = Math.ceil(h * dpr);
+      const x = c.getContext('2d');
+      x.scale(dpr, dpr);
+      x.beginPath();
+      p.forEach((q, k) => (k ? x.lineTo(q[0] - x0, q[1] - y0) : x.moveTo(q[0] - x0, q[1] - y0)));
+      x.closePath();
+      x.save();
+      x.clip();
+      try {
+        x.drawImage(src, rect.left - x0, rect.top - y0, rect.width, rect.height);
+      } catch (e) {
+        x.fillStyle = '#334';
+        x.fill();
+      }
+      x.fillStyle = 'rgba(255,255,255,0.12)';
+      x.fill();
+      x.restore();
+      x.strokeStyle = 'rgba(12,10,9,0.95)';
+      x.lineWidth = 2;
+      x.stroke();
+      const pcx = x0 + w / 2;
+      const pcy = y0 + h / 2;
+      const dx = pcx - cx;
+      const dy = pcy - cy;
       const d = Math.hypot(dx, dy) || 1;
-      const sp = (120 + Math.random() * 260) * power;
+      const sp = (110 + Math.random() * 220) * power;
       shards.push({
-        poly: p.map((q) => [q[0] - pc[0], q[1] - pc[1]]),
-        x: pc[0],
-        y: pc[1],
-        ox: pc[0],
-        oy: pc[1],
-        vx: (dx / d) * sp + (Math.random() - 0.5) * 60,
-        vy: (dy / d) * sp - 120 * power - Math.random() * 80,
+        c, w, h,
+        x: pcx, y: pcy,
+        vx: (dx / d) * sp + (Math.random() - 0.5) * 50,
+        vy: (dy / d) * sp - 110 * power - Math.random() * 70,
         r: 0,
-        vr: (Math.random() - 0.5) * 9,
-        life: 1.3 + Math.random() * 0.5,
+        vr: (Math.random() - 0.5) * 8,
+        life: 1.1 + Math.random() * 0.4,
         t: 0,
-        src,
-        rect,
       });
     }
-    // étincelles de lumière
-    for (let i = 0; i < 26 * power; i++) {
+    for (let i = 0; i < 18 * power; i++) {
       const a = Math.random() * Math.PI * 2;
-      const sp = 60 + Math.random() * 280 * power;
-      sparks.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60, life: 0.5 + Math.random() * 0.6, t: 0, c: Math.random() < 0.5 ? '255,236,180' : '180,210,255' });
+      const sp = 60 + Math.random() * 240 * power;
+      sparks.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60, life: 0.5 + Math.random() * 0.5, t: 0, c: Math.random() < 0.5 ? '255,236,180' : '180,210,255' });
     }
+    dirty = true;
   };
 
-  /** Petite gerbe de lumière (impact). */
+  /** Petite gerbe de lumière (impact, carte jouée). */
   FX.burst = function (x, y, color, n) {
-    for (let i = 0; i < (n || 14); i++) {
+    for (let i = 0; i < (n || 12); i++) {
       const a = Math.random() * Math.PI * 2;
-      const sp = 60 + Math.random() * 220;
-      sparks.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.35 + Math.random() * 0.45, t: 0, c: color || '255,220,170' });
+      const sp = 60 + Math.random() * 200;
+      sparks.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.3 + Math.random() * 0.4, t: 0, c: color || '255,220,170' });
     }
-  };
-
-  /** Instantané d'une carte (DOM) en canvas, pour la briser. */
-  FX.cardSnapshot = function (el) {
-    const r = el.getBoundingClientRect();
-    const c = document.createElement('canvas');
-    c.width = Math.max(1, Math.round(r.width));
-    c.height = Math.max(1, Math.round(r.height));
-    const x = c.getContext('2d');
-    const cs = getComputedStyle(el);
-    const g = x.createLinearGradient(0, 0, c.width * 0.4, c.height);
-    g.addColorStop(0, cs.getPropertyValue('--tint1').trim() || '#4a0d18');
-    g.addColorStop(1, cs.getPropertyValue('--tint2').trim() || '#1a0509');
-    x.fillStyle = g;
-    x.fillRect(0, 0, c.width, c.height);
-    const img = el.querySelector('.c-art img');
-    if (img && img.complete) {
-      try {
-        x.drawImage(img, c.width * 0.07, c.height * 0.06, c.width * 0.86, c.height * 0.46);
-      } catch (e) {
-        /* ignoré */
-      }
-    }
-    x.strokeStyle = '#d9ad52';
-    x.lineWidth = 3;
-    x.strokeRect(1.5, 1.5, c.width - 3, c.height - 3);
-    x.fillStyle = 'rgba(245,220,150,0.8)';
-    x.fillRect(c.width * 0.15, c.height * 0.58, c.width * 0.7, 2);
-    return c;
+    if (sparks.length > 160) sparks.splice(0, sparks.length - 160);
+    dirty = true;
   };
 
   // ------------------------------------------------------------ transition en rosace
   FX.iris = function (midway) {
+    const fast = G.UI && G.UI.settings && G.UI.settings.fast;
+    const dur = fast ? 700 : 1100;
     return new Promise((resolve) => {
       const el = document.getElementById('iris');
-      el.classList.remove('run');
+      el.style.setProperty('--iris', dur + 'ms');
+      el.classList.toggle('run', false);
       void el.offsetWidth;
       el.classList.add('run');
       setTimeout(() => {
         if (midway) midway();
-      }, 560);
+      }, dur * 0.51);
       setTimeout(() => {
-        el.classList.remove('run');
+        el.classList.toggle('run', false);
         resolve();
-      }, 1120);
+      }, dur + 20);
     });
   };
 
   // ------------------------------------------------------------ boucle
   let last = 0;
-  let lightTick = 0;
+  let frame = 0;
   function loop(ts) {
     requestAnimationFrame(loop);
     const t = ts / 1000;
     const dt = Math.min(0.05, last ? t - last : 0.016);
     last = t;
+    frame++;
 
-    // lumière : suit le doigt, sinon dérive lentement
-    light.touchT -= dt;
-    if (light.touchT <= 0) {
-      light.tx = W * (0.5 + Math.sin(t * 0.23) * 0.42);
-      light.ty = H * (0.22 + Math.sin(t * 0.17 + 1) * 0.18);
-    }
-    const k = Math.min(1, dt * (light.touchT > 0 ? 8 : 1.5));
-    light.x += (light.tx - light.x) * k;
-    light.y += (light.ty - light.y) * k;
-    lightTick += dt;
-    if (lightTick > 1 / 30) {
-      lightTick = 0;
-      updateLit();
-    }
-
-    // poussières dans les rais
-    mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    mctx.clearRect(0, 0, W, H);
-    for (const m of dust) {
-      m.ph += dt;
-      m.y += m.vy * dt;
-      m.x += Math.sin(m.ph * 0.7) * 6 * dt;
-      if (m.y < -5) Object.assign(m, newMote(false));
-      const near = Math.max(0, 1 - Math.hypot(m.x - light.x, m.y - light.y) / (W * 0.6));
-      mctx.fillStyle = `rgba(255,236,200,${m.a * (0.35 + near)})`;
-      mctx.fillRect(m.x, m.y, m.s, m.s);
+    // poussières : une image sur deux suffit
+    if (frame % 2 === 0) {
+      mctx.setTransform(0.5, 0, 0, 0.5, 0, 0);
+      mctx.clearRect(0, 0, W, H);
+      for (const m of dust) {
+        m.ph += dt * 2;
+        m.y += m.vy * dt * 2;
+        m.x += Math.sin(m.ph * 0.7) * 10 * dt;
+        if (m.y < -5) Object.assign(m, newMote(false));
+        mctx.fillStyle = `rgba(255,236,200,${m.a})`;
+        mctx.fillRect(m.x, m.y, m.s * 2, m.s * 2);
+      }
     }
 
-    // éclats
+    if (!dirty) return;
     fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     fctx.clearRect(0, 0, W, H);
     for (let i = shards.length - 1; i >= 0; i--) {
@@ -225,34 +207,13 @@
       s.x += s.vx * dt;
       s.y += s.vy * dt;
       s.r += s.vr * dt;
-      const a = Math.min(1, (s.life - s.t) / 0.4);
-      fctx.save();
-      fctx.globalAlpha = a;
+      fctx.globalAlpha = Math.min(1, (s.life - s.t) / 0.35);
       fctx.translate(s.x, s.y);
       fctx.rotate(s.r);
-      fctx.beginPath();
-      s.poly.forEach((q, j) => (j ? fctx.lineTo(q[0], q[1]) : fctx.moveTo(q[0], q[1])));
-      fctx.closePath();
-      fctx.save();
-      fctx.clip();
-      try {
-        fctx.drawImage(s.src, s.rect.left - s.ox, s.rect.top - s.oy, s.rect.width, s.rect.height);
-      } catch (e) {
-        fctx.fillStyle = '#334';
-        fctx.fill();
-      }
-      // reflet sur la tranche
-      fctx.fillStyle = `rgba(255,255,255,${0.12 + 0.18 * Math.abs(Math.sin(s.r * 2))})`;
-      fctx.fill();
-      fctx.restore();
-      fctx.strokeStyle = 'rgba(10,8,8,0.9)';
-      fctx.lineWidth = 2;
-      fctx.stroke();
-      fctx.strokeStyle = 'rgba(255,240,200,0.35)';
-      fctx.lineWidth = 0.8;
-      fctx.stroke();
-      fctx.restore();
+      fctx.drawImage(s.c, -s.w / 2, -s.h / 2, s.w, s.h);
+      fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
+    fctx.globalAlpha = 1;
     for (let i = sparks.length - 1; i >= 0; i--) {
       const p = sparks[i];
       p.t += dt;
@@ -265,23 +226,13 @@
       p.vy *= 1 - 2 * dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      const a = 1 - p.t / p.life;
-      fctx.fillStyle = `rgba(${p.c},${a})`;
+      fctx.fillStyle = `rgba(${p.c},${1 - p.t / p.life})`;
       fctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
     }
-  }
-
-  function updateLit() {
-    const els = document.querySelectorAll('.screen.show .lit, .overlay.show .lit');
-    for (const el of els) {
-      const r = el.getBoundingClientRect();
-      if (!r.width) continue;
-      const gx = ((light.x - r.left) / r.width) * 100;
-      const gy = ((light.y - r.top) / r.height) * 100;
-      el.style.setProperty('--gx', gx.toFixed(1) + '%');
-      el.style.setProperty('--gy', gy.toFixed(1) + '%');
-      el.style.setProperty('--sheen', (120 - G_clamp(gx, -50, 150) * 0.9).toFixed(1) + '%');
+    // plus rien à animer : on efface une dernière fois puis on se repose
+    if (!shards.length && !sparks.length) {
+      fctx.clearRect(0, 0, W, H);
+      dirty = false;
     }
   }
-  const G_clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 })(window.G = window.G || {});

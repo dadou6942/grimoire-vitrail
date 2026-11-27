@@ -65,6 +65,46 @@
     toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
   };
 
+  // ------------------------------------------------------------------ conseils de première partie
+  const TUTO = {
+    doors: [{ sel: '#map .doors', text: 'À chaque étage, trois portes. <b>Touche une porte</b> pour voir ce qu’elle cache, puis <b>Franchir</b>. Le chemin, c’est toi qui le choisis.' }],
+    combat: [
+      { sel: '#combat .intent', text: 'Voici ce que l’ennemi fera à son tour. Ici, l’épée indique une <b>attaque</b> et ses dégâts.' },
+      { sel: '#combat .hand', text: '<b>Glisse une carte vers le haut</b> pour la jouer. Un simple toucher l’affiche en grand.', finger: true },
+      { sel: '#combat .ink', text: 'Chaque carte coûte de l’<b>Encre</b> (le chiffre bleu). Tu en as 3 par tour.' },
+      { sel: '#combat .p-head', text: 'La partie claire de ta jauge : les PV que tu vas perdre si tu termines ton tour. L’<b>Armure</b> la réduit.' },
+      { sel: '#combat .end-turn', text: 'Quand tu as fini, <b>termine ton tour</b>. L’ennemi agit, puis tu pioches 5 nouvelles cartes.' },
+    ],
+  };
+  function tutorial(key) {
+    const steps = TUTO[key];
+    if (!steps || UI.settings.tuto[key]) return;
+    UI.settings.tuto[key] = true;
+    saveSettings();
+    const coach = $('#coach');
+    let i = 0;
+    const next = () => {
+      if (i >= steps.length) {
+        coach.className = '';
+        coach.innerHTML = '';
+        return;
+      }
+      const st = steps[i++];
+      const target = $(st.sel);
+      if (!target) return next();
+      const r = target.getBoundingClientRect();
+      const pad = 6;
+      const below = r.top < window.innerHeight * 0.45;
+      coach.className = 'show';
+      coach.innerHTML =
+        `<div class="coach-ring" style="left:${r.left - pad}px;top:${r.top - pad}px;width:${r.width + pad * 2}px;height:${r.height + pad * 2}px"></div>` +
+        `<div class="coach-bubble" style="${below ? `top:${r.bottom + 14}px` : `bottom:${window.innerHeight - r.top + 14}px`}">${st.text}<div class="coach-next">${i < steps.length ? 'Toucher pour continuer' : 'Compris'} · ${i}/${steps.length}</div></div>` +
+        (st.finger ? `<div class="coach-finger" style="left:${r.left + r.width / 2}px;top:${r.top + r.height * 0.55}px"></div>` : '');
+    };
+    coach.onclick = next;
+    next();
+  }
+
   // ------------------------------------------------------------------ infobulles
   function showTip(el, title, text) {
     const tip = $('#tip');
@@ -157,6 +197,19 @@
   }
 
   // ------------------------------------------------------------------ barre du haut
+  function relicsHTML() {
+    return R.run.relics.map((id) => `<div class="relic" data-tip="relic:${id}" data-relic="${id}"><img alt="${G.RELICS[id].name}" src="${G.Art.relic(id)}"></div>`).join('');
+  }
+  function potionsHTML() {
+    let h = '';
+    for (let i = 0; i < 3; i++) {
+      const id = R.run.potions[i];
+      h += id
+        ? `<button class="potion" data-pot="${i}" aria-label="${G.POTIONS[id].name}"><img alt="" src="${G.Art.potion(id)}"></button>`
+        : `<div class="potion empty" aria-hidden="true"></div>`;
+    }
+    return h;
+  }
   function topbar(where) {
     const run = R.run;
     return (
@@ -165,13 +218,25 @@
       `<div class="stat gold">${icon('coin')}<span class="v-gold">${run.gold}</span></div>` +
       `<div class="where">${where || ''}</div>` +
       `<button class="icon-btn b-deck" aria-label="Voir le paquet">${icon('deck')}<span class="badge">${run.deck.length}</span></button>` +
+      `<button class="icon-btn b-menu" aria-label="Menu">${icon('menu')}</button>` +
       `</div>` +
-      `<div class="relics">${run.relics.map((id) => `<div class="relic" data-tip="relic:${id}" data-relic="${id}"><img alt="${G.RELICS[id].name}" src="${G.Art.relic(id)}"></div>`).join('')}</div>`
+      `<div class="belt"><div class="relics">${relicsHTML()}</div><div class="potions" data-key="${run.potions.join(',')}">${potionsHTML()}</div></div>`
     );
   }
   function bindTopbar(root) {
     const b = $('.b-deck', root);
     if (b) b.onclick = () => openDeck();
+    const m = $('.b-menu', root);
+    if (m) m.onclick = () => openMenu();
+    bindPotions(root);
+  }
+  function bindPotions(root) {
+    $$('.potion[data-pot]', root).forEach((el) => {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        potionMenu(el, Number(el.dataset.pot), root);
+      };
+    });
   }
   function refreshTopbar(root) {
     const run = R.run;
@@ -179,7 +244,119 @@
     if (hp) hp.textContent = `${run.hp}/${run.maxHp}`;
     const g = $('.v-gold', root);
     if (g) g.textContent = run.gold;
+    const badge = $('.b-deck .badge', root);
+    if (badge) badge.textContent = run.deck.length;
+    const rel = $('.relics', root);
+    if (rel && rel.children.length !== run.relics.length) rel.innerHTML = relicsHTML();
+    const pots = $('.potions', root);
+    if (pots && pots.dataset.key !== run.potions.join(',')) {
+      pots.dataset.key = run.potions.join(',');
+      pots.innerHTML = potionsHTML();
+      bindPotions(root);
+    }
   }
+
+  function potionMenu(el, idx, root) {
+    const id = R.run.potions[idx];
+    const pot = G.POTIONS[id];
+    if (!pot) return;
+    const inCombat = current === 'combat' && C.combat && !C.combat.over && !C.busy;
+    const canUse = inCombat || pot.anywhere;
+    showTip(
+      el,
+      pot.name,
+      `${pot.desc}<div class="tip-actions">` +
+        (canUse ? `<button class="btn gold sm" data-act="use">Boire</button>` : `<span class="tip-note">Utilisable en combat.</span>`) +
+        `<button class="btn ghost sm" data-act="drop">Jeter</button></div>`
+    );
+    const tip = $('#tip');
+    tip.onclick = (e) => {
+      const act = e.target.dataset && e.target.dataset.act;
+      if (!act) return;
+      hideTip();
+      if (act === 'drop') {
+        R.removePotion(idx);
+        refreshTopbar(root);
+        R.save();
+        return;
+      }
+      if (inCombat) {
+        C.fxDelay = 0;
+        C.combat.usePotion(idx);
+        refreshTopbar(root);
+        renderCombat();
+        if (C.combat.over) handleOver();
+      } else {
+        R.removePotion(idx);
+        pot.use(null);
+        UI.toast(pot.name + ' bue');
+        refreshTopbar(root);
+        R.save();
+      }
+    };
+  }
+
+  // ---- menu de pause
+  function openMenu() {
+    const ov = $('#menu');
+    ov.innerHTML =
+      `<div class="inner menu-inner"><div class="panel-head"><h2>Pause</h2><p>${R.run ? whereText() + ` · étage ${Math.min(R.run.step + 1, R.FLOORS + 1)}` : ''}</p></div>` +
+      `<div class="menu">` +
+      `<button class="btn gold" id="m-resume">Reprendre</button>` +
+      `<button class="btn" id="m-speed">Animations : ${UI.settings.fast ? 'rapides' : 'normales'}</button>` +
+      `<button class="btn" id="m-tuto">Revoir les conseils</button>` +
+      `<button class="btn ghost" id="m-title">Sauvegarder et quitter</button>` +
+      `<button class="btn ghost" id="m-abandon">Abandonner la partie</button>` +
+      `</div></div>`;
+    ov.classList.add('show');
+    const close = () => ov.classList.toggle('show', false);
+    $('#m-resume').onclick = close;
+    $('#m-speed').onclick = () => {
+      UI.settings.fast = !UI.settings.fast;
+      saveSettings();
+      openMenu();
+    };
+    $('#m-tuto').onclick = () => {
+      UI.settings.tuto = {};
+      saveSettings();
+      close();
+      UI.toast('Les conseils réapparaîtront.');
+    };
+    $('#m-title').onclick = () => {
+      close();
+      R.save();
+      go('title', renderTitle);
+    };
+    let armed = false;
+    $('#m-abandon').onclick = (e) => {
+      if (!armed) {
+        armed = true;
+        e.currentTarget.textContent = 'Toucher encore pour abandonner';
+        return;
+      }
+      close();
+      R.clear();
+      go('title', renderTitle);
+    };
+  }
+
+  UI.settings = { fast: false, tuto: {} };
+  function loadSettings() {
+    try {
+      Object.assign(UI.settings, JSON.parse(localStorage.getItem('grimoire-vitrail.settings') || '{}'));
+    } catch (e) {
+      /* ignoré */
+    }
+  }
+  function saveSettings() {
+    try {
+      localStorage.setItem('grimoire-vitrail.settings', JSON.stringify(UI.settings));
+    } catch (e) {
+      /* ignoré */
+    }
+  }
+  // durées raccourcies en mode rapide
+  const T = (ms) => (UI.settings.fast ? Math.round(ms * 0.55) : ms);
   const ROMAN = ['', 'I', 'II', 'III'];
   const whereText = () => `Acte ${ROMAN[R.run.act]} · ${G.ACT_POOLS[R.run.act].name}`;
 
@@ -248,98 +425,147 @@
 
   function continueRun() {
     if (!R.load()) return;
+    // sauvegarde d'une version précédente (carte à embranchements)
+    const run = R.run;
+    if (!run.doors) {
+      run.step = Math.min(R.FLOORS, run.pos ? run.pos.row + 1 : 0);
+      run.history = run.history || [];
+      run.actSeen = run.actSeen || {};
+      run.pending = null;
+      run.doors = R.makeDoors();
+    }
+    run.potions = run.potions || [];
     go('map', renderMap);
   }
 
-  // ------------------------------------------------------------------ carte d'ascension
-  const NODE_NAME = { combat: 'Combat', elite: 'Élite', merchant: 'Marchand', altar: 'Autel', event: 'Mystère', boss: 'Gardien' };
+  // ------------------------------------------------------------------ carrefour : choisir sa porte
+  const NODE_NAME = { combat: 'Combat', elite: 'Élite', merchant: 'Marchand', altar: 'Autel', event: 'Mystère', boss: 'Gardien', treasure: 'Trésor' };
+  function doorInfo(d) {
+    const run = R.run;
+    if (d.type === 'combat' || d.type === 'elite' || d.type === 'boss') {
+      const e = G.ENEMIES[d.enemy];
+      const mod = d.mod ? G.MODS[d.mod] : null;
+      const reward = d.type === 'boss' ? 'Relique de gardien · carte rare · PV restaurés' : d.type === 'elite' ? 'Relique · beaucoup d’or · carte' : 'Or · carte · peut-être une fiole';
+      return {
+        kicker: d.type === 'boss' ? 'Gardien de l’acte' : d.type === 'elite' ? 'Élite' : 'Combat',
+        title: e.name,
+        art: G.Art.enemy(d.enemy),
+        portrait: true,
+        desc: (mod ? `<b class="mod">${mod.name}</b> ${mod.desc} ` : '') + `${e.hp[0]} PV.`,
+        reward: mod ? `${reward} · <b>${mod.reward}</b>` : reward,
+      };
+    }
+    const T = {
+      event: ['Mystère', 'Une rencontre inattendue : un choix, un risque, une chance.', 'Imprévisible'],
+      merchant: ['Le Marchand', `Cartes, reliques et fioles. Ta bourse : ${run.gold} or.`, 'Achats · effacer une carte'],
+      altar: ['L’Autel', 'Repose-toi ou grave une rune sur une carte.', `Soin de ${Math.round(run.maxHp * 0.3)} PV ou amélioration`],
+      treasure: ['Le Trésor', 'Un reliquaire oublié, sans gardien.', 'Une relique au choix parmi deux'],
+    }[d.type];
+    return { kicker: NODE_NAME[d.type], title: T[0], art: G.Art.node(d.type), desc: T[1], reward: T[2] };
+  }
+
   function renderMap() {
     const run = R.run;
     const el = $('#map');
-    const avail = R.availableNodes();
-    const rows = run.map.rows;
+    const boss = run.step >= R.FLOORS;
+    // piste de progression
+    let track = '';
+    for (let i = 0; i <= R.FLOORS; i++) {
+      const isBoss = i === R.FLOORS;
+      const done = i < run.step;
+      const cls = done ? 'done' : i === run.step ? 'now' : '';
+      const t = isBoss ? 'boss' : done ? run.history[i] : null;
+      track += `<div class="tk ${cls} ${isBoss ? 'boss' : ''}">${t ? `<img alt="" src="${G.Art.node(t)}">` : `<span>${i + 1}</span>`}</div>`;
+      if (i < R.FLOORS) track += `<div class="tk-line ${done ? 'done' : ''}"></div>`;
+    }
     el.innerHTML =
-      topbar(`Étage ${run.floor + 1}`) +
-      `<div class="act-title"><div class="n">Acte ${ROMAN[run.act]}</div><h2>${G.ACT_POOLS[run.act].name}</h2></div>` +
-      `<div class="map-wrap"><svg class="links"></svg></div>` +
-      `<div class="map-hint">${avail.length ? 'Choisis ta prochaine salle.' : ''}</div>`;
+      topbar(whereText()) +
+      `<div class="act-title"><div class="n">Acte ${ROMAN[run.act]} · ${boss ? 'Le gardien' : `Étage ${run.step + 1} sur ${R.FLOORS}`}</div><h2>${G.ACT_POOLS[run.act].name}</h2></div>` +
+      `<div class="track">${track}</div>` +
+      `<p class="cross-hint">${boss ? 'Le gardien t’attend derrière la dernière porte.' : 'Choisis la porte à franchir.'}</p>` +
+      `<div class="doors n${run.doors.length}"></div>` +
+      `<div class="door-detail"></div>`;
     bindTopbar(el);
-    const wrap = $('.map-wrap', el);
-    const laneX = [18, 50, 82];
-    const pos = (n) => ({ x: n.type === 'boss' ? 50 : laneX[n.lane], y: 92 - n.row * 20 });
-    const svg = $('svg', wrap);
-    const vw = wrap.clientWidth;
-    const vh = wrap.clientHeight;
-    svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`);
-    let paths = '';
-    rows.forEach((row) =>
-      row.forEach((n) => {
-        if (n.row >= rows.length - 1) return;
-        const nextRow = rows[n.row + 1];
-        const targets = nextRow.length === 1 ? nextRow : nextRow.filter((m) => n.next.includes(m.lane));
-        targets.forEach((m) => {
-          const a = pos(n);
-          const b = pos(m);
-          const x1 = (a.x / 100) * vw;
-          const y1 = (a.y / 100) * vh;
-          const x2 = (b.x / 100) * vw;
-          const y2 = (b.y / 100) * vh;
-          const d = `M${x1},${y1} C${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}`;
-          const walked = run.pos && run.path && run.path.some((p, i) => i > 0 && run.path[i - 1].row === n.row && run.path[i - 1].lane === n.lane && p.row === m.row && p.lane === m.lane);
-          paths += `<path d="${d}" stroke="#0f0c0b" stroke-width="7"/><path d="${d}" stroke="${walked ? '#f5dc96' : 'rgba(217,173,82,0.45)'}" stroke-width="${walked ? 3 : 2}" ${walked ? '' : 'stroke-dasharray="4 6"'}/>`;
-        });
-      })
-    );
-    svg.innerHTML = paths;
-    rows.forEach((row) =>
-      row.forEach((n) => {
-        const p = pos(n);
-        const isAvail = avail.includes(n);
-        const isHere = run.pos && run.pos.row === n.row && run.pos.lane === n.lane;
-        const past = run.pos && n.row <= run.pos.row && !isHere;
-        const b = document.createElement('button');
-        b.className = `map-node ${n.type === 'boss' ? 'boss' : ''} ${isAvail ? 'avail' : ''} ${isHere ? 'here done' : ''} ${past ? 'past' : ''}`;
-        b.style.left = p.x + '%';
-        b.style.top = p.y + '%';
-        b.setAttribute('aria-label', NODE_NAME[n.type]);
-        b.innerHTML = `<img alt="" src="${G.Art.node(n.type)}"><span class="lbl">${NODE_NAME[n.type]}</span>`;
-        if (isAvail) b.onclick = () => enterNode(n);
-        else b.disabled = !isAvail;
-        wrap.appendChild(b);
-      })
-    );
+    const wrap = $('.doors', el);
+    const detail = $('.door-detail', el);
+    let sel = -1;
+    const select = (i) => {
+      sel = i;
+      $$('.door', wrap).forEach((x, j) => {
+        x.classList.toggle('sel', j === i);
+        x.classList.toggle('dim', i >= 0 && j !== i);
+      });
+      const info = doorInfo(run.doors[i]);
+      detail.innerHTML =
+        `<div class="dd-text"><div class="dd-kicker">${info.kicker}</div><div class="dd-title">${info.title}</div><div class="dd-desc">${info.desc}</div><div class="dd-reward">${icon('coin')}${info.reward}</div></div>` +
+        `<button class="btn gold" id="b-door">Franchir</button>`;
+      detail.classList.add('show');
+      $('#b-door').onclick = () => enterDoor(i);
+    };
+    run.doors.forEach((d, i) => {
+      const info = doorInfo(d);
+      const b = document.createElement('button');
+      b.className = `door lit t-${d.type}${info.portrait ? ' portrait' : ''}`;
+      b.style.animationDelay = i * 90 + 'ms';
+      b.innerHTML =
+        `<div class="door-glass"><img alt="" src="${info.art}"><div class="c-light"></div></div>` +
+        (d.mod ? `<div class="door-mod">${G.MODS[d.mod].name}</div>` : '') +
+        `<div class="door-kicker">${info.kicker}</div><div class="door-title">${info.title}</div>`;
+      b.onclick = () => (sel === i ? enterDoor(i) : select(i));
+      wrap.appendChild(b);
+    });
+    if (run.doors.length === 1) select(0);
     R.save();
+    tutorial('doors');
   }
 
-  function enterNode(n) {
-    const run = R.run;
-    run.pending = { row: n.row, lane: n.lane, type: n.type };
-    if (n.type === 'combat' || n.type === 'elite' || n.type === 'boss') {
-      const id = R.enemyFor(n.type);
-      go('combat', () => startCombat(id, n.type));
-    } else if (n.type === 'event') go('event', () => renderEvent(R.nextEvent()));
-    else if (n.type === 'merchant') go('shop', () => renderShop(true));
-    else if (n.type === 'altar') go('altar', renderAltar);
+  let entering = false;
+  function enterDoor(i) {
+    if (entering) return;
+    entering = true;
+    setTimeout(() => (entering = false), 1500);
+    const d = R.chooseDoor(i);
+    if (d.type === 'combat' || d.type === 'elite' || d.type === 'boss') go('combat', () => startCombat(d.enemy, d.type, d.mod));
+    else if (d.type === 'event') go('event', () => renderEvent(R.nextEvent()));
+    else if (d.type === 'merchant') go('shop', () => renderShop(true));
+    else if (d.type === 'altar') go('altar', renderAltar);
+    else if (d.type === 'treasure') go('reward', renderTreasure);
   }
 
   function completeNode() {
-    const run = R.run;
-    const p = run.pending;
-    if (!p) return; // déjà terminé (double appui pendant la transition)
-    run.pos = { row: p.row, lane: p.lane };
-    run.path = (run.path || []).concat([{ row: p.row, lane: p.lane }]);
-    run.pending = null;
-    run.floor++;
-    R.save();
+    if (!R.finishStep()) return; // déjà terminé (double appui pendant la transition)
     go('map', renderMap);
+  }
+
+  function renderTreasure() {
+    const el = $('#reward');
+    const pool = G.shuffle(R.relicPool(['c', 'u', 'r'])).slice(0, 2);
+    el.innerHTML =
+      topbar(whereText()) +
+      `<div class="panel-head"><h2>Le Trésor</h2><p>Deux reliques dorment sous la poussière. Tu ne pourras en emporter qu’une.</p></div>` +
+      `<div class="scroll"><div class="shop-relics treasure">${pool
+        .map((id) => `<button class="shop-relic big" data-id="${id}"><img alt="" src="${G.Art.relic(id)}"><div class="t">${G.RELICS[id].name}</div><div class="d">${G.RELICS[id].desc}</div></button>`)
+        .join('')}</div></div>` +
+      `<div class="actions"><button class="btn ghost" id="b-skip">Partir les mains vides</button></div>`;
+    bindTopbar(el);
+    $$('.shop-relic', el).forEach((b) => {
+      b.onclick = () => {
+        R.gainRelic(b.dataset.id);
+        UI.toast(G.RELICS[b.dataset.id].name + ' acquise');
+        completeNode();
+      };
+    });
+    if (!pool.length) R.gainGold(60);
+    $('#b-skip').onclick = () => completeNode();
   }
 
   // ------------------------------------------------------------------ combat
   const C = { combat: null, busy: false, type: null };
   UI.C = C;
 
-  function startCombat(enemyId, type) {
+  function startCombat(enemyId, type, mod) {
     C.type = type;
+    C.mod = mod || null;
     C.busy = false;
     const el = $('#combat');
     const portrait = G.Art.enemy(enemyId);
@@ -349,15 +575,15 @@
       `<div class="enemy-zone">` +
       `<div class="move-banner"></div>` +
       `<div class="intent" data-tip="intent:"></div>` +
-      `<div class="window lit ${def.boss ? 'boss' : ''}" style="--mask:url(${portrait})"><img class="portrait" alt="" src="${portrait}"><div class="w-light"></div><div class="w-flash"></div></div>` +
-      `<div class="e-name">${def.name}</div>` +
-      `<div class="bar-wrap e-bar"><div class="block-badge"></div><div class="bar"><div class="lag"></div><div class="fill"></div><div class="txt"></div></div></div>` +
+      `<div class="window ${def.boss ? 'boss' : ''}" style="--mask:url(${portrait})"><img class="portrait" alt="" src="${portrait}"><div class="w-flash"></div></div>` +
+      `<div class="e-name">${def.name}${mod ? ` <span class="e-mod" data-tip="intent:" data-title="${G.MODS[mod].name}" data-text="${G.MODS[mod].desc}">${G.MODS[mod].name}</span>` : ''}</div>` +
+      `<div class="bar-wrap e-bar"><div class="block-badge"></div><div class="bar"><div class="lag"></div><div class="fill"></div><div class="preview"></div><div class="txt"></div></div></div>` +
       `<div class="statuses e-st"></div>` +
       `</div>` +
       `<div class="controls">` +
       `<div class="ink" aria-label="Encre"></div>` +
       `<div class="player-zone">` +
-      `<div class="p-head">${icon('heart')}<div class="bar-wrap p-bar"><div class="block-badge"></div><div class="bar"><div class="lag"></div><div class="fill"></div><div class="txt"></div></div></div></div>` +
+      `<div class="p-head">${icon('heart')}<div class="bar-wrap p-bar"><div class="block-badge"></div><div class="bar"><div class="lag"></div><div class="fill"></div><div class="preview"></div><div class="txt"></div></div></div></div>` +
       `<div class="statuses p-st"></div>` +
       `<div class="piles"><button class="pile b-draw">${icon('deck')}<b class="n-draw">0</b></button><button class="pile b-disc">${icon('discard')}<b class="n-disc">0</b></button></div>` +
       `</div>` +
@@ -368,11 +594,25 @@
     $('.end-turn', el).onclick = () => endTurn();
     $('.b-draw', el).onclick = () => openPile('Pioche', C.combat.pile, true);
     $('.b-disc', el).onclick = () => openPile('Défausse', C.combat.discard);
-    C.combat = new G.Combat(enemyId, onEvent);
+    C.combat = new G.Combat(enemyId, onEvent, mod);
     C.combat.start();
     renderCombat(true);
     setTimeout(layoutHand, 620);
     if (def.boss) setTimeout(() => banner(def.name), 600);
+    setTimeout(() => tutorial('combat'), 900);
+  }
+
+  /** Aperçu de dégâts sur une barre : `amount` PV en surbrillance au bout de la jauge. */
+  function barPreview(wrap, hp, max, block, amount) {
+    const pv = $('.preview', wrap);
+    if (!pv) return;
+    const lost = Math.max(0, Math.min(hp, amount - block));
+    if (lost <= 0) {
+      pv.style.width = '0';
+      return;
+    }
+    pv.style.left = ((hp - lost) / max) * 100 + '%';
+    pv.style.width = (lost / max) * 100 + '%';
   }
 
   function setCardWidth() {
@@ -412,6 +652,7 @@
     if (info && !c.over) {
       const kinds = info.kinds;
       let html = '';
+      if (kinds.includes('hidden')) html += icon('eye', 'i-curse') + '<span>?</span>';
       if (kinds.includes('atk')) html += icon('sword', 'i-atk') + `<span>${info.dmg}${info.hits > 1 ? '×' + info.hits : ''}</span>`;
       if (kinds.includes('def')) html += icon('shield', 'i-def');
       if (kinds.includes('buff')) html += icon('up', 'i-buff');
@@ -422,11 +663,15 @@
       it.className = 'intent' + (kinds.includes('atk') ? ' atk' : '');
       it.style.visibility = '';
       it.dataset.title = info.name;
-      it.dataset.text = intentText(c.e.intent, info);
+      it.dataset.text = kinds.includes('hidden') ? 'La brume cache ce que prépare l’ennemi.' : intentText(c.e.intent, info);
     } else it.style.visibility = 'hidden';
     barUpdate($('.e-bar', el), c.e.hp, c.e.maxHp, c.e.block);
+    barPreview($('.e-bar', el), c.e.hp, c.e.maxHp, c.e.block, 0);
     $('.e-st', el).innerHTML = statusHTML(c.e.st);
     barUpdate($('.p-bar', el), c.p.hp, c.p.maxHp, c.p.block);
+    // dégâts que tu vas subir si tu finis ton tour maintenant
+    barPreview($('.p-bar', el), c.p.hp, c.p.maxHp, 0, c.over ? 0 : c.incoming());
+    $('.p-bar', el).dataset.incoming = c.over ? 0 : c.incoming();
     $('.p-st', el).innerHTML = statusHTML(c.p.st);
     const ink = $('.ink', el);
     ink.innerHTML = `${c.ink}<small>/${R.energyPerTurn()}</small>`;
@@ -520,6 +765,7 @@
       el.classList.add('dragging');
       el.style.transform = el.dataset.base + ' translateY(-26px) scale(1.12)';
       el.style.zIndex = 60;
+      showPlayPreview(card);
     });
     el.addEventListener('pointermove', (e) => {
       if (!drag || drag.el !== el || e.pointerId !== drag.id) return;
@@ -538,6 +784,7 @@
       drag = null;
       el.classList.remove('dragging', 'ready');
       $('#combat .drop-hint').classList.remove('show');
+      clearPlayPreview();
       if (!d.moved && performance.now() - d.t0 < 400) {
         layoutHand();
         openCardView(card);
@@ -558,6 +805,37 @@
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', up);
   }
+  // aperçu de l'effet d'une carte sur les jauges pendant qu'on la tient
+  function showPlayPreview(card) {
+    const c = C.combat;
+    if (!c.canPlay(card)) return;
+    const sim = c.simulate(card);
+    const el = $('#combat');
+    const eLost = c.e.hp + c.e.block - (sim.eHp + sim.eBlock);
+    const eHpLost = c.e.hp - sim.eHp;
+    barPreview($('.e-bar', el), c.e.hp, c.e.maxHp, 0, eHpLost);
+    const eb = $('.e-bar', el);
+    eb.classList.toggle('previewing', eLost > 0);
+    if (sim.eHp <= 0) eb.classList.add('lethal');
+    // armure gagnée : la menace annoncée diminue
+    const pb = $('.p-bar', el);
+    const incoming = c.e.intent && c.e.intent.dmg && !c.hidden ? c.calcDamage(c.e, c.p, c.e.intent.dmg, true) * (c.e.intent.hits || 1) : 0;
+    barPreview(pb, c.p.hp, c.p.maxHp, sim.pBlock, incoming);
+    if (sim.pBlock > c.p.block) {
+      pb.classList.add('blk', 'gain');
+      $('.block-badge', pb).textContent = sim.pBlock;
+    }
+  }
+  function clearPlayPreview() {
+    const el = $('#combat');
+    if (!el || !C.combat) return;
+    const eb = $('.e-bar', el);
+    eb.classList.toggle('previewing', false);
+    eb.classList.toggle('lethal', false);
+    $('.p-bar', el).classList.toggle('gain', false);
+    renderCombat();
+  }
+
   function parseBaseX(el) {
     const m = /calc\(-50% \+ (-?[\d.]+)px\)/.exec(el.dataset.base || '');
     return m ? parseFloat(m[1]) : 0;
@@ -571,22 +849,27 @@
     const r = el.getBoundingClientRect();
     const tx = win.left + win.width / 2 - (r.left + r.width / 2);
     const ty = win.top + win.height * 0.55 - (r.top + r.height / 2);
-    el.classList.add('fly');
+    // la carte s'envole vers sa cible et se dissout en lumière (animation légère : transform + opacité)
+    const toEnemy = def.type === 'atk';
+    el.classList.add('fly', 'played');
     const cur = el.style.transform;
-    el.style.transform = `${cur} translate(${tx * 0.55}px, ${ty * 0.55}px) scale(0.85)`;
-    await wait(200);
-    const rect = el.getBoundingClientRect();
-    const snap = G.FX.cardSnapshot(el);
-    el.remove();
+    el.style.transform = toEnemy
+      ? `${cur} translate(${tx * 0.8}px, ${ty * 0.8}px) scale(0.55) rotate(8deg)`
+      : `${cur} translate(${tx * 0.25}px, ${ty * 0.35}px) scale(0.9)`;
+    el.style.opacity = '0';
     handEls.delete(card.uid);
+    await wait(T(170));
+    const r2 = el.getBoundingClientRect();
+    el.remove();
     C.fxDelay = 0;
     c.play(card);
-    if (def.type === 'pow') G.FX.burst(rect.left + rect.width / 2, rect.top + rect.height / 2, '245,220,150', 30);
-    else G.FX.shatter(snap, { left: rect.left, top: rect.top, width: rect.width, height: rect.height }, { power: def.exhaust ? 0.9 : 0.55, count: def.exhaust ? 10 : 7 });
+    const col = def.type === 'atk' ? '255,214,170' : def.type === 'skl' ? '170,205,255' : '245,220,150';
+    G.FX.burst(r2.left + r2.width / 2, r2.top + r2.height / 2, col, def.type === 'pow' ? 26 : 12);
     renderCombat();
     if (c.over) return handleOver();
     C.busy = false;
     renderCombat();
+    tutorial('played');
   }
 
   async function endTurn() {
@@ -605,22 +888,24 @@
     }
     C.fxDelay = 0;
     c.endTurn();
-    await wait(280);
+    await wait(T(240));
+    handEls.forEach((el) => el.remove());
+    handEls.clear();
     renderCombat();
     if (c.over) return handleOver();
-    await wait(250);
+    await wait(T(150));
     const intent = c.e.intent;
     const win = $('#combat .window');
     if (intent && intent.dmg) {
-      win.classList.remove('lunge');
+      win.classList.toggle('lunge', false);
       void win.offsetWidth;
       win.classList.add('lunge');
-      await wait(200);
+      await wait(T(180));
     }
     C.fxDelay = 0;
     c.enemyTurn();
     renderCombat();
-    await wait(450 + (intent && intent.hits ? intent.hits * 150 : 0));
+    await wait(T(380 + (intent && intent.hits ? intent.hits * 130 : 0)));
     if (c.over) return handleOver();
     C.fxDelay = 0;
     c.startTurn();
@@ -636,10 +921,11 @@
       const win = $('#combat .window');
       const img = $('img.portrait', win);
       const rect = win.getBoundingClientRect();
-      await wait(250);
-      G.FX.shatter(img, { left: rect.left, top: rect.top, width: rect.width, height: rect.height }, { power: 1.3, count: 16 });
+      await wait(T(200));
+      // seul moment où le vitrail se brise vraiment : la mort de l'ennemi
+      G.FX.shatter(img, { left: rect.left, top: rect.top, width: rect.width, height: rect.height }, { power: 1.2, count: 9 });
       win.style.visibility = 'hidden';
-      await wait(1300);
+      await wait(T(1000));
       onCombatWon();
     } else {
       document.body.classList.add('shake');
@@ -735,6 +1021,17 @@
       case 'enemyMove':
         banner(ev.move.name);
         break;
+      case 'steal':
+        floatText(`−${ev.n} or`, pp.x, pp.y - 20, 'label bad', delay);
+        setTimeout(() => UI.toast(`Il t’a volé ${ev.n} or. Abats-le pour le récupérer !`), 300);
+        refreshTopbar($('#combat'));
+        break;
+      case 'potion': {
+        const pot = G.POTIONS[ev.id];
+        floatText(pot.name, pp.x, pp.y - 30, 'label', 0);
+        G.FX.burst(pp.x, pp.y, '200,230,255', 18);
+        break;
+      }
       case 'ink': {
         const ink = $('#combat .ink');
         if (ink) {
@@ -762,11 +1059,14 @@
     run.stats.kills++;
     for (const id of run.relics) if (G.RELICS[id].combatEnd) G.RELICS[id].combatEnd(run);
     const type = C.type;
-    const reward = { gold: 0, relic: null, bossRelics: null, cards: null };
-    if (type === 'combat') reward.gold = R.gainGold(12 + Math.floor(Math.random() * 8));
+    const mod = C.mod ? G.MODS[C.mod] : null;
+    const reward = { gold: 0, relic: null, bossRelics: null, cards: null, potion: null, stolen: c.stolen };
+    if (c.stolen) run.gold += c.stolen;
+    const gm = mod && mod.gold ? mod.gold : 1;
+    if (type === 'combat') reward.gold = R.gainGold(Math.round((14 + Math.floor(Math.random() * 8)) * gm));
     if (type === 'elite') {
       run.stats.elites++;
-      reward.gold = R.gainGold(28 + Math.floor(Math.random() * 8));
+      reward.gold = R.gainGold(30 + Math.floor(Math.random() * 8));
       reward.relic = R.gainRandomRelicSilent();
     }
     if (type === 'boss') {
@@ -774,8 +1074,17 @@
       reward.gold = R.gainGold(70);
       reward.bossRelics = G.shuffle(R.relicPool(['boss'])).slice(0, 3);
     }
+    // fioles : souvent après un combat, toujours dans la brume
+    const potChance = type === 'boss' ? 0 : mod && mod.potion ? 1 : type === 'elite' ? 0.6 : 0.4;
+    if (Math.random() < potChance) {
+      const id = G.pick(Object.keys(G.POTIONS));
+      if (R.addPotion(id)) reward.potion = id;
+    }
     const n = R.has('reliquaire') ? 4 : 3;
-    reward.cards = type === 'boss' ? R.cardChoices(n, 0, 'r') : R.cardChoices(n, type === 'elite' ? 0.12 : 0);
+    const boost = (type === 'elite' ? 0.12 : 0) + (mod && mod.rare ? mod.rare : 0);
+    reward.cards = type === 'boss' ? R.cardChoices(n, 0, 'r') : R.cardChoices(n, boost);
+    // parfois une carte proposée est déjà améliorée
+    reward.upgraded = reward.cards.map(() => Math.random() < (type === 'elite' ? 0.35 : 0.15));
     R.save();
     go('reward', () => renderReward(reward));
   }
@@ -793,7 +1102,9 @@
       `<div class="panel-head"><h2>${boss ? 'Le gardien tombe' : 'Victoire'}</h2><p>${boss ? 'La rosace frémit, une page se tourne.' : 'Le verre se tait. Ramasse ce qui brille.'}</p></div>` +
       `<div class="scroll">` +
       (rw.gold ? `<div class="loot">${icon('coin').replace('<svg', '<svg style="width:40px;height:40px;fill:#d9ad52"')}<div><div class="t">${rw.gold} or</div><div class="d">Ajouté à ta bourse.</div></div></div>` : '') +
+      (rw.stolen ? `<div class="loot"><div class="loot-ico">↩</div><div><div class="t">${rw.stolen} or récupérés</div><div class="d">Le voleur rend ce qu’il t’a pris.</div></div></div>` : '') +
       (rw.relic ? `<div class="loot"><img alt="" src="${G.Art.relic(rw.relic)}"><div><div class="t">${G.RELICS[rw.relic].name}</div><div class="d">${G.RELICS[rw.relic].desc}</div></div></div>` : '') +
+      (rw.potion ? `<div class="loot"><img alt="" src="${G.Art.potion(rw.potion)}"><div><div class="t">${G.POTIONS[rw.potion].name}</div><div class="d">${G.POTIONS[rw.potion].desc} Touche-la dans ta ceinture pour la boire.</div></div></div>` : '') +
       (rw.bossRelics && rw.bossRelics.length
         ? `<div class="shop-sec">Choisis une relique de gardien</div><div class="shop-relics">${rw.bossRelics
             .map((id) => `<button class="shop-relic b-boss" data-id="${id}"><img alt="" src="${G.Art.relic(id)}"><div class="t">${G.RELICS[id].name}</div><div class="d">${G.RELICS[id].desc}</div></button>`)
@@ -806,8 +1117,10 @@
     bindTopbar(el);
     const row = $('.card-row', el);
     let chosen = null;
-    rw.cards.forEach((id) => {
-      const card = G.newCard(id);
+    let chosenUp = false;
+    rw.cards.forEach((id, i) => {
+      const up = !!(rw.upgraded && rw.upgraded[i]);
+      const card = G.newCard(id, up);
       const ce = cardEl(card);
       ce.onclick = () => {
         if (chosen === id) {
@@ -815,8 +1128,11 @@
           return;
         }
         chosen = id;
+        chosenUp = up;
         $$('.card', row).forEach((x) => x.classList.toggle('chosen', x === ce));
-        $('#b-take').disabled = false;
+        const b = $('#b-take');
+        b.disabled = false;
+        b.textContent = 'Prendre ' + G.CARDS[id].name + (up ? '+' : '');
       };
       row.appendChild(ce);
     });
@@ -850,7 +1166,7 @@
         UI.toast('Choisis d’abord une relique de gardien.');
         return;
       }
-      R.addCard(chosen);
+      R.addCard(chosen, chosenUp);
       UI.toast(G.CARDS[chosen].name + ' rejoint ton grimoire');
       leave();
     };
@@ -862,14 +1178,7 @@
       endRun(true);
       return;
     }
-    run.act++;
-    run.map = R.makeMap(run.act);
-    run.pos = null;
-    run.path = [];
-    run.pending = null;
-    run.floor++;
-    run.hp = run.maxHp;
-    R.save();
+    R.startNextAct();
     go('map', renderMap).then(() => UI.toast(`Acte ${ROMAN[run.act]} · ${G.ACT_POOLS[run.act].name} — PV restaurés`));
   }
 
@@ -915,7 +1224,8 @@
       cards.push({ id, price: price({ c: 50, u: 78, r: 145 }[rar]), sold: false });
     });
     const relics = G.shuffle(R.relicPool(['c', 'u', 'r'])).slice(0, 2).map((id) => ({ id, price: price({ c: 140, u: 190, r: 250 }[G.RELICS[id].rarity]), sold: false }));
-    return { cards, relics, remove: Math.round(R.run.removeCost * disc), removed: false };
+    const potions = G.shuffle(Object.keys(G.POTIONS)).slice(0, 3).map((id) => ({ id, price: price(id === 'larme' ? 60 : 45), sold: false }));
+    return { cards, relics, potions, remove: Math.round(R.run.removeCost * disc), removed: false };
   }
   function renderShop(fresh) {
     if (fresh || !stock) stock = makeStock();
@@ -930,10 +1240,31 @@
       `<div class="shop-sec">Reliques</div><div class="shop-relics">${stock.relics
         .map((x, i) => `<button class="shop-relic ${x.sold ? 'sold' : ''}" data-i="${i}" style="${x.sold ? 'visibility:hidden' : ''}"><img alt="" src="${G.Art.relic(x.id)}"><div class="t">${G.RELICS[x.id].name}</div><div class="d">${G.RELICS[x.id].desc}</div>${pr(x.price)}</button>`)
         .join('')}</div>` +
+      `<div class="shop-sec">Fioles</div><div class="shop-relics">${stock.potions
+        .map((x, i) => `<button class="shop-relic shop-pot" data-p="${i}" style="${x.sold ? 'visibility:hidden' : ''}"><img alt="" src="${G.Art.potion(x.id)}"><div class="t">${G.POTIONS[x.id].name}</div><div class="d">${G.POTIONS[x.id].desc}</div>${pr(x.price)}</button>`)
+        .join('')}</div>` +
       `<div class="shop-sec">Service</div><div class="choice-list"><button class="choice" id="b-remove" ${stock.removed || run.gold < stock.remove ? 'disabled' : ''}><span class="t">Effacer une page — ${stock.remove} or</span><span class="d">${stock.removed ? 'Déjà fait aujourd’hui.' : 'Retire une carte de ton grimoire.'}</span></button></div>` +
       `</div>` +
       `<div class="actions"><button class="btn gold" id="b-leave">Partir</button></div>`;
     bindTopbar(el);
+    $$('.shop-pot', el).forEach((b) => {
+      b.onclick = () => {
+        const x = stock.potions[Number(b.dataset.p)];
+        if (x.sold) return;
+        if (run.gold < x.price) return UI.toast('Pas assez d’or');
+        if (run.potions.length >= 3) return UI.toast('Ta ceinture est pleine (3 fioles).');
+        if (!b.dataset.armed) {
+          b.dataset.armed = '1';
+          b.style.boxShadow = '0 0 0 2px #f5dc96';
+          return UI.toast('Touche encore pour acheter');
+        }
+        run.gold -= x.price;
+        x.sold = true;
+        R.addPotion(x.id);
+        UI.toast(G.POTIONS[x.id].name + ' achetée');
+        renderShop(false);
+      };
+    });
     const row = $('.shop-cards', el);
     stock.cards.forEach((x) => {
       const card = G.newCard(x.id);
@@ -1156,6 +1487,7 @@
   // ------------------------------------------------------------------ démarrage
   UI.init = function () {
     R.loadMeta();
+    loadSettings();
     setCardWidth();
     window.addEventListener('resize', () => {
       setCardWidth();
