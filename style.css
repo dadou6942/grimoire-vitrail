@@ -752,3 +752,4 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap
 .hero-pick .lock { font-size: 11px; letter-spacing: 0.04em; text-transform: none; padding: 0 4px; line-height: 1.2; }
 .unlock { color: var(--gold-hi) !important; font-family: var(--label); font-size: 17px !important; }
 .float.burn { color: #ffd08a; text-shadow: 0 0 2px #000, 0 2px 0 #000, 0 0 14px rgba(255, 140, 40, 0.95); }
+.version { position: absolute; bottom: calc(10px + var(--safe-b)); left: 0; right: 0; text-align: center; font-family: var(--label); font-size: 12px; letter-spacing: 0.1em; color: rgba(169, 156, 128, 0.6); }

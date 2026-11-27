@@ -365,7 +365,16 @@
   const whereText = () => `Acte ${ROMAN[R.run.act]} · ${G.ACT_POOLS[R.run.act].name}`;
 
   // ------------------------------------------------------------------ titre
+  // une nouvelle version est installée : on recharge à l'écran titre (jamais en pleine partie)
+  UI.onUpdateReady = function () {
+    if (current === 'title') location.reload();
+    else UI.toast('Mise à jour prête : elle s’appliquera au retour à l’écran titre.');
+  };
   function renderTitle() {
+    if (window.GRIMOIRE_UPDATE && current && current !== 'title') {
+      location.reload();
+      return;
+    }
     const has = R.hasSave();
     const el = $('#title');
     el.innerHTML =
@@ -376,7 +385,8 @@
       (has ? `<button class="btn gold" id="b-continue">Reprendre l’ascension</button>` : '') +
       `<button class="btn" id="b-new">Nouvelle ascension</button>` +
       `</div>` +
-      `<div class="foot">${R.meta.wins ? `Victoires : ${R.meta.wins}` : 'La rosace attend ton retour.'}</div>`;
+      `<div class="foot">${R.meta.wins ? `Victoires : ${R.meta.wins}` : 'La rosace attend ton retour.'}</div>` +
+      `<div class="version">Version ${window.GRIMOIRE_VERSION || 'locale'}</div>`;
     if (has) $('#b-continue').onclick = () => continueRun();
     let armed = false;
     $('#b-new').onclick = (e) => {

@@ -61,7 +61,8 @@ js/fx.js                éclats de verre (pré-découpés), étincelles, poussi�
 js/ui.js                écrans, main de cartes au doigt, déroulé animé des combats
 tools/balance.js        un bot joue des centaines de parties pour mesurer la difficulté
 tools/enemies.js        PV perdus par combat avec le paquet de départ
-tools/make-icons.js     icônes de l'application
+tools/make-icons.js     icônes de l’application
+tools/bump.js           numéro de version (à lancer avant chaque publication : node tools/bump.js X.Y.Z)
 ```
 
 Équilibrage : `node tools/balance.js 500 chevalier` (ou `sorciere`, `saigneur`). Le bot simple gagne de 25 à 33 % de ses parties sans passer par le marchand ni boire de fiole.
