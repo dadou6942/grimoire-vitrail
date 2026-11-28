@@ -82,8 +82,17 @@ Grimoire). On joue à la souris (cliquer deux fois une carte, ou la glisser sur 
 
 ## Progression (Grimoire)
 
-Le bouton **Grimoire** de l'écran titre réunit tout ce qui suit d'une partie à l'autre ; on passe d'une page à l'autre
-par les quatre médaillons de verre en bas de l'écran.
+Entre deux ascensions, cinq médaillons de verre en bas de l'écran donnent accès à tout :
+
+- **Collection** : cartes, reliques, ennemis et fioles rencontrés ;
+- **Héros** : choix du porteur, palier, pactes et arbre de compétences ;
+- **Jouer** (la grande rosace du milieu) : la fiche de l'ascension en cours (acte, étage, PV, or) et « Continuer »,
+  ou le porteur choisi et « Nouvelle ascension » ;
+- **Succès** ;
+- **Profil** : compte et sauvegarde, réglages, statistiques et historique.
+
+En haut, le niveau du héros, son expérience et les points de compétence à dépenser. Pendant une ascension, la barre
+disparaît pour laisser toute la place au jeu.
 
 - **Pactes** : avant de partir, signe jusqu'à 3 pactes (9 en tout). Chacun ajoute une contrainte
   (ennemis plus forts, moins d'or, pas de soin à l'autel…) et augmente l'expérience gagnée.

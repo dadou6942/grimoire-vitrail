@@ -37,6 +37,9 @@
     trophy: 'M7 2h10v2h4c0 4-2 6-4.5 6.5A5 5 0 0113 14v4h4v3H7v-3h4v-4a5 5 0 01-3.5-3.5C5 10 3 8 3 4h4zm0 4H5c.3 1.6 1 2.6 2 3.2zm10 0v3.2c1-.6 1.7-1.6 2-3.2z',
     chart: 'M3 20h18v2H3zM5 12h3v7H5zm5.5-6h3v13h-3zM16 9h3v10h-3z',
     close: 'M6 4.6l6 6 6-6L19.4 6l-6 6 6 6-1.4 1.4-6-6-6 6L4.6 18l6-6-6-6z',
+    hero: 'M12 2l7 3v6c0 5-3 9-7 11-4-2-7-6-7-11V5zm0 4a2.5 2.5 0 100 5 2.5 2.5 0 000-5zm-3.5 9h7c-.6-2-2-3-3.5-3s-2.9 1-3.5 3z',
+    play: 'M8 4l12 8-12 8z',
+    gear: 'M10.5 2h3l.5 2.6 2 .9 2.2-1.5 2.1 2.1-1.5 2.2.9 2 2.6.5v3l-2.6.5-.9 2 1.5 2.2-2.1 2.1-2.2-1.5-2 .9-.5 2.6h-3l-.5-2.6-2-.9-2.2 1.5-2.1-2.1 1.5-2.2-.9-2L2 13.5v-3l2.6-.5.9-2L4 5.8l2.1-2.1 2.2 1.5 2-.9zM12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z',
   };
   const icon = (n, cls) => `<svg viewBox="0 0 24 24" class="${cls || ''}" aria-hidden="true"><path d="${ICON[n]}"/></svg>`;
   const ST_ICON = { force: 'up', faib: 'broken', fel: 'crack', epines: 'thorns', epinesP: 'thorns', rempart: 'tower', martyre: 'heart', veille: 'candle', rituel: 'flame', banniere: 'up', vigilance: 'eye', brulure: 'flame', braise: 'flame', brasier: 'flame', echo: 'eye', soif: 'drop', pacte: 'drop', calice: 'heart', veillee: 'candle', plomb: 'shield', scelle: 'coin' };
@@ -371,7 +374,7 @@
       close();
       if (current === 'combat') saveCombat('player');
       else R.save();
-      go('title', renderTitle);
+      openHome('play');
     };
     let armed = false;
     $('#m-abandon').onclick = (e) => {
@@ -383,7 +386,7 @@
       }
       close();
       R.clear();
-      go('title', renderTitle);
+      openHome('play');
     };
   }
 
@@ -546,49 +549,134 @@
     if (current === 'title') location.reload();
     else UI.toast('Mise à jour prête : elle s’appliquera au retour à l’écran titre.');
   };
+  // ------------------------------------------------------------------ accueil : onglets en bas
+  // Collection · Héros · Jouer · Succès · Profil. La barre n'existe qu'entre deux ascensions.
+  const HOME_TABS = [
+    ['collection', 'Collection', 'grid', 'saphir'],
+    ['heroes', 'Héros', 'hero', 'rubis'],
+    ['play', 'Jouer', 'play', 'or'],
+    ['ach', 'Succès', 'trophy', 'amethyste'],
+    ['profile', 'Profil', 'user', 'emeraude'],
+  ];
+  let homeTab = 'play';
+  let selHero = 'chevalier';
+  let selPalier = null;
+  const anyPoints = () => G.Meta && Object.keys(G.HEROES).some((h) => R.heroUnlocked(h) && G.Meta.points(h) > 0);
+  const startHero = () => (R.heroUnlocked(selHero) ? selHero : 'chevalier');
+
+  /** Ouvre l'accueil sur un onglet (depuis n'importe quel écran). */
+  function openHome(tab, hero) {
+    if (tab) homeTab = tab;
+    if (hero) selHero = hero;
+    if (current === 'title') renderTitle();
+    else go('title', renderTitle);
+  }
+  UI.openHome = openHome;
+  // ancien point d'entrée du Grimoire : chaque page a maintenant son onglet
+  function openHub(tab, hero) {
+    const map = { skills: 'heroes', collection: 'collection', ach: 'ach', stats: 'profile' };
+    openHome(map[tab] || 'heroes', hero);
+  }
+  UI.openHub = openHub;
+
   function renderTitle() {
     if (window.GRIMOIRE_UPDATE && current && current !== 'title') {
       location.reload();
       return;
     }
-    const has = R.hasSave();
     const el = $('#title');
+    const M = G.Meta;
+    // même onglet redessiné (compétence apprise, palier…) : on garde la position de défilement
+    const prevBody = $('.home-body', el);
+    const keepScroll = prevBody && prevBody.classList.contains('tab-' + homeTab) && current === 'title' ? prevBody.scrollTop : 0;
+    const hero = homeTab === 'play' && R.hasSave() && R.load() ? R.run.hero : startHero();
+    const lv = M.levelOf(M.hero(hero).xp);
+    const pts = M.points(hero);
     el.innerHTML =
-      `<div class="title-rose lit"><img alt="" src="${G.Art.rosace('title', 'rubis', 300)}"></div>` +
-      `<div class="kicker">Un jeu de cartes et de verre</div>` +
-      `<h1>Grimoire<small>de Vitrail</small></h1>` +
-      `<div class="menu">` +
-      (has ? `<button class="btn gold" id="b-continue">Reprendre l’ascension</button>` : '') +
-      `<button class="btn" id="b-new">Nouvelle ascension</button>` +
-      `</div>` +
-      `<div class="title-row"><button class="btn sm" id="b-hub">Grimoire${anyPoints() ? ' <i class="dot"></i>' : ''}</button><button class="btn ghost sm" id="b-account">Compte</button></div>` +
-      (G.Cloud && G.Cloud.enabled() ? `<div class="foot acc-line">${cloudLine()}</div>` : '') +
-      `<div class="foot">${R.meta.wins ? `Victoires : ${R.meta.wins}` : 'La rosace attend ton retour.'}</div>` +
-      `<div class="version">Version ${window.GRIMOIRE_VERSION || 'locale'}</div>`;
-    if (has) $('#b-continue').onclick = () => continueRun();
-    $('#b-account').onclick = () => openAccount();
-    $('#b-hub').onclick = () => openHub();
-    let armed = false;
-    $('#b-new').onclick = (e) => {
-      if (has && !armed) {
-        armed = true;
-        e.currentTarget.textContent = 'Abandonner la partie en cours ?';
-        setTimeout(() => {
-          armed = false;
-          const b = $('#b-new');
-          if (b) b.textContent = 'Nouvelle ascension';
-        }, 3500);
-        return;
-      }
-      go('heroes', renderHeroes);
+      `<header class="home-head">` +
+      `<button class="lv-badge" id="h-level" aria-label="Niveau ${lv.level} : ouvrir les héros">${lv.level}</button>` +
+      `<div class="lv-xp"><span>${G.HEROES[hero].name.replace(/^L[ea] /, '')} · ${lv.next ? `${lv.into} / ${lv.next}` : 'niveau max'}</span><i><b style="width:${lv.next ? Math.round((lv.into / lv.next) * 100) : 100}%"></b></i></div>` +
+      (pts > 0 ? `<button class="pts-chip" id="h-points">${pts} point${pts > 1 ? 's' : ''}</button>` : '') +
+      `<button class="icon-btn" id="h-gear" aria-label="Profil et réglages">${icon('gear')}</button>` +
+      `</header>` +
+      `<div class="home-body tab-${homeTab}"></div>` +
+      `<nav class="tabbar" role="tablist">${HOME_TABS.map(
+        ([k, n, ic, pal]) =>
+          `<button role="tab" aria-selected="${k === homeTab}" class="${k === homeTab ? 'on' : ''}${k === 'play' ? ' play' : ''}" data-t="${k}">` +
+          `<span class="disc" style="background-image:url(${G.Art.rosace('tab-' + k, pal, k === 'play' ? 96 : 60)})">${icon(ic)}</span>` +
+          `<span class="nm">${n}</span>${k === 'heroes' && anyPoints() ? '<i class="dot"></i>' : ''}</button>`
+      ).join('')}</nav>`;
+    $$('.tabbar button', el).forEach((b) => {
+      b.onclick = () => {
+        if (b.dataset.t === homeTab) return;
+        homeTab = b.dataset.t;
+        renderTitle();
+      };
+    });
+    $('#h-level').onclick = () => openHome('heroes', hero);
+    $('#h-gear').onclick = () => openHome('profile');
+    if ($('#h-points')) $('#h-points').onclick = () => openHome('heroes', hero);
+    const body = $('.home-body', el);
+    if (homeTab === 'play') homePlay(body);
+    else if (homeTab === 'heroes') homeHeroes(body);
+    else if (homeTab === 'collection') hubCollection(body);
+    else if (homeTab === 'ach') hubAch(body);
+    else homeProfile(body);
+    body.scrollTop = keepScroll;
+  }
+
+  // ---- Jouer : l'ascension en cours, ou le porteur choisi et « Nouvelle ascension »
+  function homePlay(body) {
+    const run = R.hasSave() && R.load() ? R.run : null;
+    if (run) {
+      const h = G.HEROES[run.hero];
+      const boss = run.step >= R.FLOORS;
+      const steps = Array.from({ length: R.FLOORS + 1 }, (_, i) => `<i class="${i < run.step ? 'd' : i === run.step ? 'c' : ''}${i === R.FLOORS ? ' boss' : ''}"></i>`).join('');
+      body.innerHTML =
+        `<div class="run-card"><div class="k">Ascension en cours</div><div class="t">Acte ${ROMAN[run.act]} · ${G.ACT_POOLS[run.act].name}</div>` +
+        `<div class="steps">${steps}<span>${boss ? 'le gardien' : `étage ${run.step + 1} sur ${R.FLOORS}`}</span></div>` +
+        `<div class="row"><span class="hp">${icon('heart')} ${run.hp} / ${run.maxHp}</span><span class="gold">${icon('coin')} ${run.gold} or</span><span>${run.deck.length} cartes</span></div></div>` +
+        `<div class="play-hero"><img alt="" src="${G.Art.hero(run.hero)}"></div>` +
+        `<h2 class="play-name">${h.name}</h2>` +
+        `<div class="chips"><span>Palier <b>${run.palier || 0}</b></span><span>Pactes : <b>${(run.pacts || []).length || 'aucun'}</b></span><span>Reliques : <b>${run.relics.length}</b></span></div>` +
+        `<button class="btn gold play-go" id="b-continue">Continuer</button>` +
+        `<button class="link-btn" id="b-abandon">Abandonner et recommencer</button>`;
+      $('#b-continue').onclick = () => continueRun();
+      let armed = false;
+      $('#b-abandon').onclick = (e) => {
+        if (!armed) {
+          armed = true;
+          e.currentTarget.textContent = 'Toucher encore : la partie en cours sera perdue';
+          e.currentTarget.classList.add('armed');
+          return;
+        }
+        R.clear();
+        renderTitle();
+      };
+      return;
+    }
+    const id = startHero();
+    const h = G.HEROES[id];
+    const maxP = R.maxPalier(id);
+    if (selPalier === null || selPalier > maxP) selPalier = maxP;
+    body.innerHTML =
+      `<div class="play-title"><div class="kicker">Un jeu de cartes et de verre</div><h1>Grimoire<small>de Vitrail</small></h1></div>` +
+      `<button class="play-hero" id="b-pick-hero" aria-label="Changer de porteur"><img alt="" src="${G.Art.hero(id)}"></button>` +
+      `<h2 class="play-name">${h.name}</h2><div class="play-sub">${h.title}</div>` +
+      `<div class="chips"><button id="b-palier">Palier <b>${selPalier}</b></button><button id="b-pacts">Pactes : <b>${selPacts.length ? selPacts.length + ' · +' + Math.round(G.Meta.pactXp(selPacts) * 100) + ' %' : 'aucun'}</b></button></div>` +
+      `<button class="btn gold play-go" id="b-start">Nouvelle ascension</button>` +
+      `<div class="foot">${R.meta.wins ? `Victoires : ${R.meta.wins}` : 'La rosace attend ton retour.'}</div>`;
+    $('#b-pick-hero').onclick = () => openHome('heroes');
+    $('#b-palier').onclick = () => openHome('heroes');
+    $('#b-pacts').onclick = () => openPacts();
+    $('#b-start').onclick = () => {
+      R.newRun(id, selPalier, selPacts.filter((p) => G.Meta.pactAvailable(p)));
+      go('map', renderMap).then(() => UI.toast('Acte I · ' + G.ACT_POOLS[1].name));
     };
   }
 
-  // ------------------------------------------------------------------ héros
-  let selHero = 'chevalier';
-  let selPalier = null;
-  function renderHeroes() {
-    const el = $('#heroes');
+  // ---- Héros : choix du porteur, palier, pactes, arbre de compétences
+  function homeHeroes(body) {
     const h = G.HEROES[selHero];
     const open = R.heroUnlocked(selHero);
     const maxP = R.maxPalier(selHero);
@@ -596,14 +684,13 @@
     const g = R.meta.guardians || 0;
     const lockText = (x) => `Bats ${x.unlock} gardien${x.unlock > 1 ? 's' : ''} (${Math.min(g, x.unlock)}/${x.unlock})`;
     const wins = (R.meta.winsBy && R.meta.winsBy[selHero]) || 0;
-    el.innerHTML =
-      `<h2>Choisis ton porteur</h2>` +
+    body.innerHTML =
       `<div class="hero-row">${Object.values(G.HEROES)
         .map((x) => {
           const ok = R.heroUnlocked(x.id);
           return (
             `<button class="hero-pick ${x.id === selHero ? 'sel' : ''} ${ok ? '' : 'locked'}" data-h="${x.id}"><img alt="" src="${G.Art.hero(x.id)}">` +
-            `<div class="nm">${x.name.replace(/^L[ea] /, '')}</div>${ok ? '' : `<div class="lock">${lockText(x)}</div>`}</button>`
+            `<div class="nm">${x.name.replace(/^L[ea] /, '')}${ok && G.Meta.points(x.id) > 0 ? ' <i class="dot"></i>' : ''}</div>${ok ? '' : `<div class="lock">${lockText(x)}</div>`}</button>`
           );
         })
         .join('')}</div>` +
@@ -614,36 +701,56 @@
           `<div class="p-txt"><b>Palier ${selPalier}</b><span>${R.PALIERS[selPalier]}</span>${maxP === 0 ? '<span class="p-hint">Gagne une partie pour débloquer le palier 1.</span>' : selPalier > 0 ? '<span class="p-hint">Les paliers s’additionnent.</span>' : ''}</div>` +
           `<button class="icon-btn" id="p-plus" ${selPalier >= maxP ? 'disabled' : ''} aria-label="Palier supérieur">+</button></div>` +
           `<div class="hero-extra"><button class="btn sm" id="b-pacts">Pactes : ${selPacts.length ? selPacts.length + ' · +' + Math.round(G.Meta.pactXp(selPacts) * 100) + ' % exp.' : 'aucun'}</button>` +
-          `<button class="btn ghost sm" id="b-hero-skills">Niveau ${G.Meta.levelOf(G.Meta.hero(selHero).xp).level}${G.Meta.points(selHero) > 0 ? ' <i class="dot"></i>' : ''}</button></div>`
+          `<button class="btn gold sm" id="b-hero-play">Jouer ${h.name.replace(/^L[ea] /, 'avec le ').replace('avec le Sorcière', 'avec la Sorcière')}</button></div>`
         : `<div class="facts"><span>${lockText(h)} pour l’éveiller.</span></div>`) +
       `</div>` +
-      `<div class="actions"><button class="btn ghost" id="b-back">Retour</button><button class="btn gold" id="b-start" ${open ? '' : 'disabled'}>Commencer</button></div>`;
-    $$('.hero-pick', el).forEach((b) => {
+      (open ? `<div class="shop-sec">Compétences</div><div class="hero-tree"></div>` : '');
+    $$('.hero-pick', body).forEach((b) => {
       b.onclick = () => {
         selHero = b.dataset.h;
         selPalier = null;
-        renderHeroes();
+        renderTitle();
       };
     });
-    $$('.facts svg', el).forEach((s) => (s.style.cssText = 'width:16px;height:16px;fill:#c21f31;vertical-align:-2px'));
-    if (open) {
-      $('#b-pacts').onclick = () => openPacts();
-      $('#b-hero-skills').onclick = () => openHub('skills', selHero);
-      $('#p-minus').onclick = () => {
-        selPalier = Math.max(0, selPalier - 1);
-        renderHeroes();
-      };
-      $('#p-plus').onclick = () => {
-        selPalier = Math.min(maxP, selPalier + 1);
-        renderHeroes();
-      };
-    }
-    $('#b-back').onclick = () => go('title', renderTitle);
-    $('#b-start').onclick = () => {
-      if (!R.heroUnlocked(selHero)) return;
-      R.newRun(selHero, selPalier, selPacts.filter((id) => G.Meta.pactAvailable(id)));
-      go('map', renderMap).then(() => UI.toast('Acte I · ' + G.ACT_POOLS[1].name));
+    $$('.facts svg', body).forEach((x) => (x.style.cssText = 'width:16px;height:16px;fill:#c21f31;vertical-align:-2px'));
+    if (!open) return;
+    $('#b-pacts').onclick = () => openPacts();
+    $('#b-hero-play').onclick = () => openHome('play');
+    $('#p-minus').onclick = () => {
+      selPalier = Math.max(0, selPalier - 1);
+      renderTitle();
     };
+    $('#p-plus').onclick = () => {
+      selPalier = Math.min(maxP, selPalier + 1);
+      renderTitle();
+    };
+    hubHero = selHero;
+    hubSkills($('.hero-tree', body));
+  }
+
+  // ---- Profil : compte, réglages, statistiques
+  function homeProfile(body) {
+    body.innerHTML =
+      `<div class="profile-top">` +
+      `<button class="tile" id="pf-account">${icon('user')}<span class="t">Compte</span><span class="s">${G.Cloud && G.Cloud.enabled() && G.Cloud.loggedIn() ? 'connecté' : 'et sauvegarde'}</span></button>` +
+      `<button class="tile" id="pf-speed">${icon('speed')}<span class="t">Animations</span><span class="s">${UI.settings.fast ? 'rapides' : 'normales'}</span></button>` +
+      `<button class="tile" id="pf-tuto">${icon('bulb')}<span class="t">Conseils</span><span class="s">les revoir</span></button>` +
+      `</div>` +
+      (G.Cloud && G.Cloud.enabled() ? `<div class="foot acc-line">${cloudLine()}</div>` : '') +
+      `<div class="stats-body"></div>` +
+      `<div class="version">Version ${window.GRIMOIRE_VERSION || 'locale'}</div>`;
+    $('#pf-account').onclick = () => openAccount();
+    $('#pf-speed').onclick = () => {
+      UI.settings.fast = !UI.settings.fast;
+      saveSettings();
+      renderTitle();
+    };
+    $('#pf-tuto').onclick = () => {
+      UI.settings.tuto = {};
+      saveSettings();
+      UI.toast('Les conseils réapparaîtront.');
+    };
+    hubStats($('.stats-body', body));
   }
 
   /** Reprend la partie exactement où on l'avait laissée. */
@@ -2152,49 +2259,8 @@
   R.chooseEnchant = (kind, cancelable) => UI.pickEnchant(kind, cancelable).then((m) => m || 'Tu renonces.');
 
   // ================================================================== le Grimoire : compétences, collection, succès, statistiques
-  const HUB_TABS = [
-    ['skills', 'Compétences', 'tree', 'or'],
-    ['collection', 'Collection', 'grid', 'saphir'],
-    ['ach', 'Succès', 'trophy', 'rubis'],
-    ['stats', 'Statistiques', 'chart', 'emeraude'],
-  ];
-  let hubTab = 'skills';
   let hubHero = 'chevalier';
   let colTab = 'cards';
-
-  function openHub(tab, hero) {
-    if (tab) hubTab = tab;
-    if (hero) hubHero = hero;
-    if (!R.heroUnlocked(hubHero)) hubHero = 'chevalier';
-    const ov = $('#hub');
-    const tabName = (HUB_TABS.find((t) => t[0] === hubTab) || HUB_TABS[0])[1];
-    ov.innerHTML =
-      `<div class="inner"><div class="panel-head hub-head"><span class="kicker">Grimoire</span><h2>${tabName}</h2>` +
-      `<button class="icon-btn hub-x" id="hub-close" aria-label="Fermer le Grimoire">${icon('close')}</button></div>` +
-      `<div class="scroll hub-body"></div>` +
-      `<nav class="hub-dock" role="tablist">${HUB_TABS.map(
-        ([k, n, ic, pal]) =>
-          `<button role="tab" aria-selected="${k === hubTab}" class="${k === hubTab ? 'on' : ''}" data-t="${k}">` +
-          `<span class="disc" style="background-image:url(${G.Art.rosace('hub-' + k, pal, 60)})">${icon(ic)}</span>` +
-          `<span class="nm">${n === 'Statistiques' ? 'Stats' : n}</span>${k === 'skills' && anyPoints() ? '<i class="dot"></i>' : ''}</button>`
-      ).join('')}</nav></div>`;
-    ov.classList.add('show');
-    $$('.hub-dock button', ov).forEach((b) => {
-      b.onclick = () => openHub(b.dataset.t);
-    });
-    $('#hub-close').onclick = () => {
-      ov.classList.toggle('show', false);
-      if (current === 'title') renderTitle();
-      if (current === 'heroes') renderHeroes();
-    };
-    const body = $('.hub-body', ov);
-    if (hubTab === 'skills') hubSkills(body);
-    else if (hubTab === 'collection') hubCollection(body);
-    else if (hubTab === 'ach') hubAch(body);
-    else hubStats(body);
-  }
-  UI.openHub = openHub;
-  const anyPoints = () => G.Meta && Object.keys(G.HEROES).some((h) => R.heroUnlocked(h) && G.Meta.points(h) > 0);
 
   // ---- compétences
   function hubSkills(body) {
@@ -2226,7 +2292,7 @@
     $$('.hub-heroes button', body).forEach((b) => {
       b.onclick = () => {
         hubHero = b.dataset.h;
-        openHub('skills');
+        renderTitle();
       };
     });
     $$('.node', body).forEach((b) => {
@@ -2242,7 +2308,7 @@
           lb.onclick = () => {
             if (M.learn(h, n.id)) {
               UI.toast(n.name + ' apprise');
-              openHub('skills');
+              renderTitle();
             }
           };
         }
@@ -2258,7 +2324,7 @@
           return;
         }
         M.resetTree(h);
-        openHub('skills');
+        renderTitle();
       };
     }
   }
@@ -2283,7 +2349,7 @@
     $$('.hub-heroes button', body).forEach((b) => {
       b.onclick = () => {
         colTab = b.dataset.c;
-        openHub('collection');
+        renderTitle();
       };
     });
     const cb = $('.col-body', body);
@@ -2449,7 +2515,7 @@
       });
       $('#pact-ok').onclick = () => {
         ov.classList.toggle('show', false);
-        renderHeroes();
+        if (current === 'title') renderTitle();
       };
     };
     draw();
@@ -2492,18 +2558,18 @@
         unlocks.map((id) => `<p class="unlock">${G.HEROES[id].name} s’est éveillé${id === 'sorciere' ? 'e' : ''} !</p>`).join('') +
         `<div class="menu"><button class="btn gold" id="b-again">Nouvelle ascension</button>` +
         (xp && G.Meta.points(run.hero) > 0 ? `<button class="btn" id="b-skills">Dépenser mes points</button>` : '') +
-        `<button class="btn ghost" id="b-home">Titre</button></div>`;
-      $('#b-again').onclick = () => go('heroes', renderHeroes);
+        `<button class="btn ghost" id="b-home">Accueil</button></div>`;
+      $('#b-again').onclick = () => openHome('play', run.hero);
       const sk = $('#b-skills');
-      if (sk) sk.onclick = () => openHub('skills', run.hero);
-      $('#b-home').onclick = () => go('title', renderTitle);
+      if (sk) sk.onclick = () => openHome('heroes', run.hero);
+      $('#b-home').onclick = () => openHome('play');
     });
   }
 
   // ------------------------------------------------------------------ clavier (PC)
   // 1 à 9 (0 = 10e) : choisir une carte, la même touche la joue ; Entrée / Espace : fin du tour ;
   // ← → : changer de cible ; Échap : annuler, fermer, ou ouvrir la pause.
-  const CLOSERS = { hub: '#hub-close', deck: '#b-deck-close', account: '#acc-close', pick: '#b-pick-cancel', menu: '#m-resume' };
+  const CLOSERS = { deck: '#b-deck-close', account: '#acc-close', pick: '#b-pick-cancel', menu: '#m-resume' };
   function onKey(e) {
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
     if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) return;
