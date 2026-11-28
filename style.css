@@ -1153,3 +1153,15 @@ html.wide .play-hero { width: min(200px, 19vh); }
 .tab-heroes .hero-pick { max-width: 104px; }
 html.wide .tab-heroes .hero-pick { max-width: 150px; }
 .tab-heroes .hero-row { flex: none; }
+
+/* ============================================================ v1.8.1 : récompense de gardien en deux étapes */
+.boss-relics .shop-relic.picked { box-shadow: 0 0 0 2px var(--gold-hi), 0 0 24px rgba(245, 220, 150, 0.6); }
+.boss-relics:has(.picked) .shop-relic:not(.picked) { opacity: 0.45; }
+.loot .link-btn { margin-left: auto; flex: none; }
+.btn.waiting { --fill: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.3)), linear-gradient(180deg, #6e4e14, #3a2608); color: #f0dcae; }
+.card-row.flash .card { animation: rowFlash 0.9s ease-out; }
+@keyframes rowFlash { 30% { filter: brightness(1.5) drop-shadow(0 0 14px rgba(255, 220, 150, 0.9)); } }
+.boss-relics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.boss-relics .shop-relic { width: auto; padding: 8px 6px; }
+.actions.duo { flex-wrap: nowrap; }
+.actions.duo .btn { flex: 1 1 0; min-width: 0; max-width: 240px; padding: 8px 18px; font-size: 16px; line-height: 1.15; white-space: normal; }

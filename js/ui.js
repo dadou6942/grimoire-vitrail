@@ -1777,6 +1777,10 @@
   function renderReward(rw) {
     const el = $('#reward');
     const boss = C.type === 'boss';
+    const hasBoss = !!(rw.bossRelics && rw.bossRelics.length);
+    // gardien : d'abord la relique (ou aucune), puis la carte ; tout tient à l'écran
+    const relicStep = hasBoss && rw.bossChoice === undefined;
+    let relicPick = null;
     el.innerHTML =
       topbar(whereText()) +
       `<div class="panel-head"><h2>${boss ? 'Le gardien tombe' : 'Victoire'}</h2><p>${boss ? 'La rosace frémit, une page se tourne.' : 'Le verre se tait. Ramasse ce qui brille.'}</p></div>` +
@@ -1786,16 +1790,49 @@
       (rw.relic ? `<div class="loot"><img alt="" src="${G.Art.relic(rw.relic)}"><div><div class="t">${G.RELICS[rw.relic].name}</div><div class="d">${G.RELICS[rw.relic].desc}</div></div></div>` : '') +
       (rw.bonusRelic ? `<div class="loot"><img alt="" src="${G.Art.relic(rw.bonusRelic)}"><div><div class="t">${G.RELICS[rw.bonusRelic].name}</div><div class="d">Le reliquaire ouvert à temps. ${G.RELICS[rw.bonusRelic].desc}</div></div></div>` : '') +
       (rw.potion ? `<div class="loot"><img alt="" src="${G.Art.potion(rw.potion)}"><div><div class="t">${G.POTIONS[rw.potion].name}</div><div class="d">${G.POTIONS[rw.potion].desc} Touche-la dans ta ceinture pour la boire.</div></div></div>` : '') +
-      (rw.bossRelics && rw.bossRelics.length
-        ? `<div class="shop-sec">Choisis une relique de gardien</div><div class="shop-relics">${rw.bossRelics
+      (relicStep
+        ? `<div class="shop-sec">Étape 1 sur 2 · choisis une relique de gardien</div><div class="shop-relics boss-relics">${rw.bossRelics
             .map((id) => `<button class="shop-relic b-boss" data-id="${id}"><img alt="" src="${G.Art.relic(id)}"><div class="t">${G.RELICS[id].name}</div><div class="d">${G.RELICS[id].desc}</div></button>`)
-            .join('')}</div><div class="actions"><button class="btn ghost sm" id="b-noboss">N’en prendre aucune</button></div>`
-        : '') +
-      `<div class="shop-sec">Ajoute une carte à ton grimoire</div>` +
-      `<div class="card-row"></div>` +
+            .join('')}</div>`
+        : (hasBoss
+            ? rw.bossChoice
+              ? `<div class="loot"><img alt="" src="${G.Art.relic(rw.bossChoice)}"><div><div class="t">${G.RELICS[rw.bossChoice].name}</div><div class="d">${G.RELICS[rw.bossChoice].desc}</div></div><button class="link-btn" id="b-reboss">Changer</button></div>`
+              : `<div class="loot"><div class="loot-ico">—</div><div><div class="t">Aucune relique de gardien</div><div class="d">Tu as laissé les reliques au gardien.</div></div><button class="link-btn" id="b-reboss">Changer</button></div>`
+            : '') +
+          `<div class="shop-sec">${hasBoss ? 'Étape 2 sur 2 · ' : ''}Ajoute une carte à ton grimoire</div>` +
+          `<div class="card-row"></div>`) +
       `</div>` +
-      `<div class="actions"><button class="btn ghost" id="b-skip">Ne rien prendre</button><button class="btn gold" id="b-take" disabled>Prendre</button></div>`;
+      (relicStep
+        ? `<div class="actions duo"><button class="btn ghost" id="b-noboss">N’en prendre aucune</button><button class="btn gold" id="b-boss-ok" disabled>Choisis une relique</button></div>`
+        : `<div class="actions duo"><button class="btn ghost" id="b-skip">Ne rien prendre</button><button class="btn gold waiting" id="b-take">Choisis une carte</button></div>`);
     bindTopbar(el);
+    if (relicStep) {
+      const ok = $('#b-boss-ok');
+      $$('.b-boss', el).forEach((b) => {
+        b.onclick = () => {
+          relicPick = b.dataset.id;
+          $$('.b-boss', el).forEach((x) => x.classList.toggle('picked', x === b));
+          ok.disabled = false;
+          ok.textContent = 'Prendre cette relique';
+        };
+      });
+      const choose = (v) => {
+        rw.bossChoice = v;
+        R.saveResume({ screen: 'reward', rw, type: C.type });
+        renderReward(rw);
+      };
+      ok.onclick = () => relicPick && choose(relicPick);
+      $('#b-noboss').onclick = () => choose(null);
+      return;
+    }
+    const re = $('#b-reboss');
+    if (re) {
+      re.onclick = () => {
+        rw.bossChoice = undefined;
+        R.saveResume({ screen: 'reward', rw, type: C.type });
+        renderReward(rw);
+      };
+    }
     const row = $('.card-row', el);
     let chosen = null;
     let chosenUp = false;
@@ -1812,38 +1849,11 @@
         chosenUp = up;
         $$('.card', row).forEach((x) => x.classList.toggle('chosen', x === ce));
         const b = $('#b-take');
-        b.disabled = false;
+        b.classList.remove('waiting');
         b.textContent = 'Prendre ' + G.CARDS[id].name + (up ? '+' : '');
       };
       row.appendChild(ce);
     });
-    // relique de gardien : facultative, et on peut changer d'avis jusqu'au départ
-    const hasBoss = rw.bossRelics && rw.bossRelics.length;
-    const markBoss = () => {
-      $$('.b-boss', el).forEach((x) => {
-        const on = x.dataset.id === rw.bossChoice;
-        x.style.opacity = rw.bossChoice === undefined || on ? '1' : '0.35';
-        x.style.boxShadow = on ? '0 0 0 2px #f5dc96, 0 0 24px rgba(245,220,150,.6)' : '';
-      });
-      const none = $('#b-noboss');
-      if (none) none.classList.toggle('chosen', rw.bossChoice === null);
-    };
-    $$('.b-boss', el).forEach((b) => {
-      b.onclick = () => {
-        rw.bossChoice = b.dataset.id;
-        markBoss();
-        R.saveResume({ screen: 'reward', rw, type: C.type });
-      };
-    });
-    const noBoss = $('#b-noboss');
-    if (noBoss) {
-      noBoss.onclick = () => {
-        rw.bossChoice = null;
-        markBoss();
-        R.saveResume({ screen: 'reward', rw, type: C.type });
-      };
-    }
-    markBoss();
     let left = false;
     const leave = () => {
       if (left) return;
@@ -1858,7 +1868,16 @@
     };
     $('#b-skip').onclick = leave;
     $('#b-take').onclick = () => {
-      if (!chosen || left) return;
+      if (left) return;
+      if (!chosen) {
+        // les cartes sont peut-être plus bas : on les montre
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.classList.remove('flash');
+        void row.offsetWidth;
+        row.classList.add('flash');
+        UI.toast('Touche une carte pour la choisir.');
+        return;
+      }
       if (hasBoss && rw.bossChoice === undefined) {
         UI.toast('Choisis une relique de gardien, ou « N’en prendre aucune ».');
         return;
